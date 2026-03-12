@@ -44,7 +44,7 @@ export default function RegisterForm() {
 
   const onSubmit = async (data: RegisterFormData) => {
     const supabase = createClient()
-    const { data, error } = await supabase.auth.signUp({
+    const { data: signupResult, error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
@@ -63,11 +63,11 @@ export default function RegisterForm() {
       return
     }
 
-    if (data?.user) {
+    if (signupResult?.user) {
       const { error: profileError } = await supabase
         .from('importers')
         .upsert({
-          id: data.user.id,
+          id: signupResult.user.id,
           business_name: data.businessName,
           full_name: data.fullName,
           username: data.username,
