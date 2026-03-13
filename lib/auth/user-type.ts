@@ -32,7 +32,7 @@ export async function getCustomerUser() {
 
   const { data: customer, error } = await supabase
     .from('customers')
-    .select('*')
+    .select('*, importers!store_id(store_slug)')
     .eq('user_id', user.id)
     .maybeSingle()
 
