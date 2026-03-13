@@ -46,50 +46,60 @@ export function CartProvider({
       
       if (session?.user) {
         const userId = session.user.id
-        // TODO: Query customer record by user_id and store_slug
-        const { data: customer } = await supabase
-          .from('customers')
-          .select('id, store_id')
-          .eq('user_id', userId)
-          .eq('store_id', slug)
+        
+        // First get the store by slug to find the UUID
+        const { data: importer } = await supabase
+          .from('importers')
+          .select('id')
+          .eq('store_slug', slug)
           .single()
         
-        if (customer) {
-          setCustomerId(customer.id)
-          setStoreId(customer.store_id)
-          
-          // Load cart
-          const { data: cartData } = await supabase
-            .from('carts')
-            .select(`
-              id,
-              cart_items (
-                id,
-                product_id,
-                quantity,
-                products (
-                  id,
-                  name,
-                  price,
-                  image_url
-                )
-              )
-            `)
-            .eq('customer_id', customer.id)
+        if (importer) {
+          // Then query customer by user_id and store UUID
+          const { data: customer } = await supabase
+            .from('customers')
+            .select('id, store_id')
+            .eq('user_id', userId)
+            .eq('store_id', importer.id)
             .single()
           
-          if (cartData?.cart_items) {
-            const items = cartData.cart_items.map((item: any): CartItem => ({
-              ...item,
-              products: item.products as {
-                id: string
-                name: string
-                price: number
-                image_url: string | null
-              }
-            }))
-            setCartItems(items)
-            setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
+          if (customer) {
+            setCustomerId(customer.id)
+            setStoreId(customer.store_id)
+            
+            // Load cart
+            const { data: cartData } = await supabase
+              .from('carts')
+              .select(`
+                id,
+                cart_items (
+                  id,
+                  product_id,
+                  quantity,
+                  products (
+                    id,
+                    name,
+                    price,
+                    image_url
+                  )
+                )
+              `)
+              .eq('customer_id', customer.id)
+              .single()
+            
+            if (cartData?.cart_items) {
+              const items = cartData.cart_items.map((item: any): CartItem => ({
+                ...item,
+                products: item.products as {
+                  id: string
+                  name: string
+                  price: number
+                  image_url: string | null
+                }
+              }))
+              setCartItems(items)
+              setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
+            }
           }
         }
       }
