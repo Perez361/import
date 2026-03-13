@@ -1,28 +1,75 @@
-import { redirect } from 'next/navigation'
-import { getAuthenticatedUser } from '@/lib/auth/session'
-import { getImporter } from '@/lib/importer'
-import { slugify } from '@/lib/utils'
-import { getProductsByImporter } from '@/lib/products'
-import { Store, Eye, Link, Share2, Edit3, Trash2 } from 'lucide-react'
+'use client'
 
-export default async function StorefrontPage() {
-  const user = await getAuthenticatedUser()
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { Store, Eye, Link, Share2 } from 'lucide-react'
 
-  if (!user) {
-    redirect('/login')
+// Types
+interface Importer {
+  business_name: string
+  username: string
+  store_slug: string
+}
+
+interface Product {
+  id: string
+  name: string
+  description: string
+  price: number
+  image_url: string
+  shipping_tag: string
+}
+
+// Inline slugify
+function slugify(text: string): string {
+  return text.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
+export default function StorefrontPage() {
+  const [importer, setImporter] = useState<Importer | null>(null)
+  const [products, setProducts] = useState<Product[]>([])
+  const [copied, setCopied] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  const supabase = createClient()
+
+  useEffect(() => {
+    async function loadData() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: importerData } = await supabase.from('importers').select('*').eq('id', user.id).single()
+        setImporter(importerData as Importer)
+        const { data: prods } = await supabase.from('products').select('*').eq('importer_id', user.id).order('created_at', { ascending: false })
+        setProducts(prods || [])
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  if (loading) {
+    return <div className="p-8">Loading...</div>
   }
 
-  const importer = await getImporter(user.id)
-  const businessName = importer?.business_name || 'My Store'
-  const storeSlug = importer?.store_slug || slugify(businessName)
+  if (!importer) {
+    return <div className="p-8">No importer data</div>
+  }
 
-  const products = await getProductsByImporter(user.id) || []
+  const businessName = importer.business_name || 'My Store'
+  const storeSlug = importer.store_slug || slugify(importer.username || 'my-store')
+  const storeUrl = `https://importation.vercel.app/store/${storeSlug}` // Update to your Vercel URL
 
-  const storefrontProducts = products.map((p: any) => ({
-    name: p.name,
-    price: `GH₵${p.price}`,
-    stock: 'Pre-order | Without shipping fee'
-  }))
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(storeUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handlePreview = () => {
+    window.open(`/store/${storeSlug}`, '_blank')
+  }
+
+  const totalProducts = products.length
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -35,16 +82,13 @@ export default async function StorefrontPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <a href={`/store/${storeSlug}`} target="_blank" rel="noopener" className="flex items-center gap-2 rounded-xl bg-[var(--color-success)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-success)]/90">
+          <button onClick={handlePreview} className="flex items-center gap-2 rounded-xl bg-[var(--color-success)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-success)]/90">
             <Eye className="h-4 w-4" />
             Preview
-          </a>
-          <button className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]" onClick={() => {
-            navigator.clipboard.writeText(`http://localhost:3000/store/${storeSlug}`)
-            alert('Link copied!')
-          }}>
+          </button>
+          <button onClick={handleCopy} className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]">
             <Link className="h-4 w-4" />
-            Copy Link
+            {copied ? 'Copied!' : 'Copy Link'}
           </button>
         </div>
       </div>
@@ -53,10 +97,10 @@ export default async function StorefrontPage() {
         <div className="lg:col-span-2">
           <h2 className="text-xl font-bold text-[var(--color-text-primary)] mb-6">Store URL</h2>
           <div className="flex gap-3 p-4 border border-[var(--color-border)] rounded-xl bg-[var(--color-card)] items-center">
-            <span className="font-mono text-sm text-[var(--color-text-muted)]">importflow.app/store/{storeSlug}</span>
-            <button className="flex items-center gap-1 ml-auto px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-white text-xs font-semibold hover:bg-[var(--color-brand)]/90 transition">
+            <span className="font-mono text-sm text-[var(--color-text-muted)] truncate flex-1">{storeUrl}</span>
+            <button onClick={handleCopy} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-white text-xs font-semibold hover:bg-[var(--color-brand)]/90">
               <Share2 className="h-3 w-3" />
-              Share
+              {copied ? 'Copied!' : 'Copy'}
             </button>
           </div>
         </div>
@@ -65,7 +109,7 @@ export default async function StorefrontPage() {
           <div className="space-y-3">
             <div className="flex justify-between py-2">
               <span className="text-sm text-[var(--color-text-muted)]">Products</span>
-              <span className="font-semibold text-[var(--color-text-primary)]">{products.length}</span>
+              <span className="font-semibold text-[var(--color-text-primary)]">{totalProducts}</span>
             </div>
             <div className="flex justify-between py-2">
               <span className="text-sm text-[var(--color-text-muted)]">Visitors</span>
@@ -82,23 +126,38 @@ export default async function StorefrontPage() {
       <div className="mt-8">
         <h2 className="text-xl font-bold text-[var(--color-text-primary)] mb-6">Preview Products</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {storefrontProducts.map((product, index) => (
-            <div key={index} className="border border-[var(--color-border)] rounded-xl p-6 hover:shadow-lg transition-all group">
-              <div className="w-full h-32 bg-[var(--color-muted)] rounded-lg mb-4 group-hover:scale-105 transition-transform"></div>
-              <h3 className="font-semibold text-[var(--color-text-primary)] mb-2">{product.name}</h3>
+          {products.map((product) => (
+            <div key={product.id} className="border border-[var(--color-border)] rounded-xl p-6 hover:shadow-lg transition-all group">
+              <div className="w-full h-32 rounded-lg mb-4 group-hover:scale-105 transition-transform overflow-hidden bg-[var(--color-muted)]" 
+                   style={{ 
+                     backgroundImage: product.image_url ? `url(${product.image_url})` : 'none',
+                     backgroundSize: 'cover', 
+                     backgroundPosition: 'center' 
+                   }}>
+                {!product.image_url && (
+                  <div className="w-full h-full flex items-center justify-center text-[var(--color-text-muted)]">
+                    <Store className="h-8 w-8" />
+                  </div>
+                )}
+              </div>
+              <h3 className="font-semibold text-[var(--color-text-primary)] mb-1 truncate">{product.name}</h3>
+              <p className="text-xs text-[var(--color-text-muted)] mb-2 line-clamp-2">{product.description || 'Pre-order now'}</p>
               <div className="flex justify-between items-center">
-                <span className="text-lg font-bold text-[var(--color-success)]">{product.price}</span>
-                <span className="text-sm text-[var(--color-success)]">{product.stock}</span>
+                <span className="text-lg font-bold text-[var(--color-success)]">GH₵{product.price?.toLocaleString()}</span>
+                <span className="text-xs bg-[var(--color-success-light)] text-[var(--color-success)] px-2 py-1 rounded-full font-medium">
+                  {product.shipping_tag}
+                </span>
               </div>
             </div>
           ))}
         </div>
-      </div>
-
-      <div className="mt-12 p-6 rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] text-center text-[var(--color-text-muted)]">
-        <Edit3 className="h-12 w-12 mx-auto mb-4 text-[var(--color-muted)]" />
-        <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">Customize Your Store</h3>
-        <p>Store customization, themes, banners, and SEO settings coming soon.</p>
+        {products.length === 0 && (
+          <div className="col-span-full text-center py-12 text-[var(--color-text-muted)] border-2 border-dashed border-[var(--color-border)] rounded-2xl">
+            <Store className="h-12 w-12 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">No products yet</h3>
+            <p>Add your first pre-order product at <a href="/dashboard/products/new" className="text-[var(--color-brand)] hover:underline">Products</a></p>
+          </div>
+        )}
       </div>
     </div>
   )
