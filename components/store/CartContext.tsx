@@ -19,6 +19,8 @@ interface CartContextType {
   cartCount: number
   cartItems: CartItem[]
   addToCart: (productId: string) => Promise<void>
+  updateQuantity: (cartItemId: string, quantity: number) => Promise<void>
+  removeFromCart: (cartItemId: string) => Promise<void>
   customerId: string | null
   storeId: string | null
   loading: boolean
@@ -180,10 +182,108 @@ export function CartProvider({
     }
   }
 
+  const updateQuantity = async (cartItemId: string, quantity: number) => {
+    if (!customerId || !storeId) return
+    
+    const supabase = createClient()
+    try {
+      if (quantity <= 0) {
+        // Remove the item
+        await supabase.from('cart_items').delete().eq('id', cartItemId)
+      } else {
+        // Update quantity
+        await supabase.from('cart_items').update({ quantity }).eq('id', cartItemId)
+      }
+      
+      // Refresh cart data
+      const { data: updatedCart } = await supabase
+        .from('carts')
+        .select(`
+          id,
+          cart_items (
+            id,
+            product_id,
+            quantity,
+            products (
+              id,
+              name,
+              price,
+              image_url
+            )
+          )
+        `)
+        .eq('customer_id', customerId)
+        .single()
+      
+      if (updatedCart?.cart_items) {
+        const items = updatedCart.cart_items.map((item: any): CartItem => ({
+          ...item,
+          products: item.products as {
+            id: string
+            name: string
+            price: number
+            image_url: string | null
+          }
+        }))
+        setCartItems(items)
+        setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
+      }
+    } catch (error) {
+      console.error('Update quantity error:', error)
+    }
+  }
+
+  const removeFromCart = async (cartItemId: string) => {
+    if (!customerId || !storeId) return
+    
+    const supabase = createClient()
+    try {
+      await supabase.from('cart_items').delete().eq('id', cartItemId)
+      
+      // Refresh cart data
+      const { data: updatedCart } = await supabase
+        .from('carts')
+        .select(`
+          id,
+          cart_items (
+            id,
+            product_id,
+            quantity,
+            products (
+              id,
+              name,
+              price,
+              image_url
+            )
+          )
+        `)
+        .eq('customer_id', customerId)
+        .single()
+      
+      if (updatedCart?.cart_items) {
+        const items = updatedCart.cart_items.map((item: any): CartItem => ({
+          ...item,
+          products: item.products as {
+            id: string
+            name: string
+            price: number
+            image_url: string | null
+          }
+        }))
+        setCartItems(items)
+        setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
+      }
+    } catch (error) {
+      console.error('Remove from cart error:', error)
+    }
+  }
+
   const value = {
     cartCount,
     cartItems,
     addToCart,
+    updateQuantity,
+    removeFromCart,
     customerId,
     storeId,
     loading

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Package, Phone, MapPin, ShoppingCart, User, LogOut, Plus, X } from 'lucide-react'
+import { Package, Phone, MapPin, ShoppingCart, User, LogOut, Plus, X, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { CartProvider, useCart } from '@/components/store/CartContext'
@@ -312,7 +312,7 @@ function CartBadge() {
 }
 
 function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
-  const { cartItems, cartCount, customerId } = useCart()
+  const { cartItems, cartCount, customerId, updateQuantity, removeFromCart } = useCart()
   const total = cartItems.reduce((sum, item) => sum + (item.quantity * item.products.price), 0)
   
   const handleCheckout = async () => {
@@ -367,14 +367,46 @@ function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
             <div className="space-y-4">
               {cartItems.map((item) => (
                 <div key={item.id} className="flex gap-4 py-4 border-b border-gray-100">
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg flex items-center justify-center">
-                    <Package className="h-8 w-8 text-gray-400" />
+                  {/* Product Image */}
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {item.products.image_url ? (
+                      <img 
+                        src={item.products.image_url} 
+                        alt={item.products.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Package className="h-8 w-8 text-gray-400" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <h3 className="font-medium text-gray-900">{item.products.name}</h3>
-                    <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                    <p className="text-sm text-gray-500 mb-2">GH₵{item.products.price} each</p>
+                    {/* Quantity Controls */}
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600"
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+                      <button 
+                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-right">
+                  <div className="flex flex-col items-end justify-between">
+                    <button 
+                      onClick={() => removeFromCart(item.id)}
+                      className="text-red-500 hover:text-red-700 p-1"
+                      title="Remove item"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                     <p className="font-bold text-gray-900">GH₵{item.quantity * item.products.price}</p>
                   </div>
                 </div>
