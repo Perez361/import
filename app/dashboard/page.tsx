@@ -36,9 +36,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-surface)]">
-      <DashboardHeader businessName={businessName} email={email} />
-
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+
         {/* Welcome */}
         <div className="mb-8 flex flex-col gap-1 sm:mb-10">
           <h1 className="text-xl font-bold text-[var(--color-text-primary)] sm:text-2xl">
