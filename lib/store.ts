@@ -5,14 +5,32 @@ import { slugify } from '@/lib/utils'
 
 export async function getImporterBySlug(slug: string) {
   const supabase = await createClient()
+  
+  console.log('Looking for importer with slug:', slug)
+  
+  // First try to match by store_slug (case-insensitive)
   const { data, error } = await supabase
     .from('importers')
     .select('*')
     .ilike('store_slug', slug)
     .single()
 
-  if (error || !data) return null
-  return data
+  console.log('store_slug lookup result:', { data, error })
+  
+  if (data) return data
+  
+  // Fallback: try to match by username (case-insensitive)
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from('importers')
+    .select('*')
+    .ilike('username', slug)
+    .single()
+
+  console.log('username fallback lookup result:', { fallbackData, fallbackError })
+  
+  if (fallbackData) return fallbackData
+  
+  return null
 }
 
 

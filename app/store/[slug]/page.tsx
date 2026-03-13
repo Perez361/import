@@ -9,13 +9,14 @@ interface Product {
   description?: string
 }
 
-export default async function StorePage({ params }: { params: { slug: string } }) {
-  const importer = await getImporterBySlug(params.slug)
+export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const importer = await getImporterBySlug(slug)
   if (!importer) {
     return <div className="p-8 text-center">Store not found</div>
   }
 
-  const products = await getProductsBySlug(params.slug) as Product[]
+  const products = await getProductsBySlug(slug) as Product[]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
