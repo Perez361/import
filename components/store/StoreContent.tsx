@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Package, Phone, MapPin, ShoppingCart, User, LogOut, Plus } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -143,7 +144,24 @@ function ProductCard({ product, slug }: { product: Product; slug: string }) {
 
 export default function StoreContent({ slug, importer, products }: StoreContentProps) {
   const { customerId } = useCart()
-  const isLoggedIn = !!customerId
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  
+  useEffect(() => {
+    const checkAuth = async () => {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      setIsLoggedIn(!!session)
+    }
+    checkAuth()
+    
+    // Also listen for auth changes
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsLoggedIn(!!session)
+    })
+    
+    return () => subscription.unsubscribe()
+  }, [])
   
   // Get customer name for display
   const customerName = 'Customer' // This will be set by the auth context
