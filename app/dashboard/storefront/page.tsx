@@ -35,11 +35,14 @@ export default async function StorefrontPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 rounded-xl bg-[var(--color-success)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-success)]/90">
+          <a href={`/store/${storeSlug}`} target="_blank" rel="noopener" className="flex items-center gap-2 rounded-xl bg-[var(--color-success)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-success)]/90">
             <Eye className="h-4 w-4" />
             Preview
-          </button>
-          <button className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]">
+          </a>
+          <button className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]" onClick={() => {
+            navigator.clipboard.writeText(`http://localhost:3000/store/${storeSlug}`)
+            alert('Link copied!')
+          }}>
             <Link className="h-4 w-4" />
             Copy Link
           </button>
