@@ -58,7 +58,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {products.map((product, index) => (
               <div key={index} className="group bg-white rounded-2xl border border-gray-200 hover:shadow-xl hover:border-gray-300 transition-all overflow-hidden">
-                <div className="h-64 bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center overflow-hidden">
+                <div className="relative h-64 bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center overflow-hidden">
                   {product.image_url ? (
                     <Image
                       src={product.image_url}
