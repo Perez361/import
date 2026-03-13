@@ -18,16 +18,11 @@ export default async function StorefrontPage() {
 
   const products = await getProductsByImporter(user.id) || []
 
-  const demoProducts = products.map((p: any) => ({
+  const storefrontProducts = products.map((p: any) => ({
     name: p.name,
     price: `GH₵${p.price}`,
     stock: 'Pre-order | Without shipping fee'
   }))
-    { name: 'Nike Air Max', price: 'GH₵650', stock: '12 in stock' },
-    { name: 'iPhone 15 Pro', price: 'GH₵9,800', stock: '5 in stock' },
-    { name: 'Samsung Galaxy S24', price: 'GH₵7,500', stock: '8 in stock' },
-    { name: 'MacBook Air M2', price: 'GH₵12,400', stock: '3 in stock' },
-  ]
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -84,12 +79,12 @@ export default async function StorefrontPage() {
       <div className="mt-8">
         <h2 className="text-xl font-bold text-[var(--color-text-primary)] mb-6">Preview Products</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {demoProducts.map((product, index) => (
+          {storefrontProducts.map((product, index) => (
             <div key={index} className="border border-[var(--color-border)] rounded-xl p-6 hover:shadow-lg transition-all group">
               <div className="w-full h-32 bg-[var(--color-muted)] rounded-lg mb-4 group-hover:scale-105 transition-transform"></div>
               <h3 className="font-semibold text-[var(--color-text-primary)] mb-2">{product.name}</h3>
               <div className="flex justify-between items-center">
-                <span className="text-lg font-bold text-[var(--color-success)]">GH₵{product.price}</span>
+                <span className="text-lg font-bold text-[var(--color-success)]">{product.price}</span>
                 <span className="text-sm text-[var(--color-success)]">{product.stock}</span>
               </div>
             </div>

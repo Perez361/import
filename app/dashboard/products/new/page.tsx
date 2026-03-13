@@ -4,7 +4,6 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Package, Upload, Image as ImageIcon, X } from 'lucide-react'
-import { Input, Button, Textarea } from '@/components/ui' // Assume or use FormInput from auth
 
 export default function NewProductPage() {
   const router = useRouter()
@@ -21,59 +20,57 @@ export default function NewProductPage() {
 
   const supabase = createClient()
 
-  const handleImageUpload = async () => {
-    if (!imageFile) return
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!imageFile || !formData.name || !formData.price) return
 
     setLoading(true)
 
-    // Upload to storage: product-images/{userId}/{uuid}.jpg
-    const user = supabase.auth.getUser()
-    const userId = (await user).data.user?.id
-    if (!userId) {
-      alert('User not found')
-      return
-    }
-
-    const fileExt = imageFile.name.split('.').pop()
-    const fileName = `${crypto.randomUUID()}.${fileExt}`
-    const bucket = 'product-images'
-    const path = `${userId}/${fileName}`
-
-    const { data: { publicUrl }, error: uploadError } = await supabase.storage
-      .from(bucket)
-      .upload(path, imageFile, {
-        cacheControl: '3600',
-        upsert: false
-      })
-
-    if (uploadError) {
-      alert('Image upload failed: ' + uploadError.message)
+    // Get user ID
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      alert('Login required')
       setLoading(false)
       return
     }
 
-    // Create product
-    const { error: createError } = await supabase
-      .rpc('create_product', { // Or direct insert; use server func later?
+    // Upload image
+    const fileExt = imageFile.name.split('.').pop()
+    const fileName = `${crypto.randomUUID()}.${fileExt}`
+    const path = `${user.id}/${fileName}`
+    const { error: uploadError } = await supabase.storage
+      .from('product-images')
+      .upload(path, imageFile)
+
+    if (uploadError) {
+      alert('Upload failed: ' + uploadError.message)
+      setLoading(false)
+      return
+    }
+
+    const publicUrl = supabase.storage
+      .from('product-images')
+      .getPublicUrl(path).data.publicUrl
+
+    // Insert product
+    const { error: insertError } = await supabase
+      .from('products')
+      .insert({
+        importer_id: user.id,
         name: formData.name,
         price: parseFloat(formData.price),
-        description: formData.description,
+        description: formData.description || null,
         image_url: publicUrl
       })
 
-    if (createError) {
-      alert('Product creation failed: ' + createError.message)
+    if (insertError) {
+      alert('Failed to save product: ' + insertError.message)
     } else {
       router.push('/dashboard/products')
       router.refresh()
     }
 
     setLoading(false)
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    handleImageUpload()
   }
 
   return (
@@ -90,7 +87,6 @@ export default function NewProductPage() {
 
       <div className="bg-[var(--color-card)] rounded-2xl border border-[var(--color-border)] p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Image Upload */}
           <div>
             <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
               <ImageIcon className="h-4 w-4" />
@@ -109,8 +105,8 @@ export default function NewProductPage() {
               ) : (
                 <>
                   <Upload className="h-12 w-12 mx-auto mb-4 text-[var(--color-muted)]" />
-                  <p className="text-[var(--color-text-muted)] mb-1">Click to upload or drag image</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">PNG, JPG up to 5MB</p>
+                  <p className="text-[var(--color-text-muted)] mb-1">Click to upload image</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">PNG, JPG</p>
                 </>
               )}
             </div>
@@ -126,10 +122,10 @@ export default function NewProductPage() {
                 }
               }}
               className="hidden"
+              required
             />
           </div>
 
-          {/* Form Fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold mb-2 text-[var(--color-text-primary)]">Product Name</label>
@@ -166,18 +162,18 @@ export default function NewProductPage() {
               placeholder="Product details, sizes, pre-order info..."
             />
             <p className="text-xs text-[var(--color-text-muted)] mt-1">
-              "Without shipping fee" tag auto-added
+              "Without shipping fee" tag is automatically added
             </p>
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full bg-[var(--color-success)] hover:bg-[var(--color-success-dark)] text-white font-semibold py-3 rounded-xl transition-all">
+          <button type="submit" disabled={loading} className="w-full bg-[var(--color-success)] hover:bg-[var(--color-success-dark)] text-white font-semibold py-3 rounded-xl transition-all shadow-lg">
             {loading ? 'Creating...' : (
               <>
-                <Package className="h-4 w-4 mr-2" />
+                <Package className="h-4 w-4 mr-2 inline" />
                 Create Product
               </>
             )}
-          </Button>
+          </button>
         </form>
       </div>
     </div>
