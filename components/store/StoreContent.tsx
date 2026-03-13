@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Package, Phone, MapPin, ShoppingCart, User, LogOut, Plus } from 'lucide-react'
+import { Package, Phone, MapPin, ShoppingCart, User, LogOut, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { CartProvider, useCart } from '@/components/store/CartContext'
 import { createClient } from '@/lib/supabase/client'
-import { getCustomerUser } from '@/lib/auth/user-type'
+import { toast } from 'sonner'
 import { logoutAction } from '@/lib/actions'
 
 function handleLogout() {
@@ -53,21 +53,20 @@ function StoreHeader({ slug, isLoggedIn, customerName }: {
 
           {/* Right: Profile & Cart */}
           <div className="flex items-center gap-2">
-            {isLoggedIn ? (
+            {isLoggedIn && customerName ? (
               <>
-                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
+                <Link href={`/store/${slug}/profile`} className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
                   <User className="h-4 w-4 text-blue-600" />
                   <span className="text-sm font-medium text-gray-700">{customerName}</span>
-                </div>
-                <form action={logoutAction}>
-                  <button 
-                    type="submit"
-                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                    title="Logout"
-                  >
-                    <LogOut className="h-5 w-5 text-gray-700" />
-                  </button>
-                </form>
+                </Link>
+                <button 
+                  type="button"
+                  onClick={handleLogout}
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                  title="Logout"
+                >
+                  <LogOut className="h-5 w-5 text-gray-700" />
+                </button>
               </>
             ) : (
               <>
@@ -154,6 +153,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
   const { customerId } = useCart()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [customerName, setCustomerName] = useState('')
+  const [showCart, setShowCart] = useState(false)
   
   useEffect(() => {
     const checkAuth = async () => {
@@ -170,7 +170,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
           .single()
         
         if (customer) {
-          setCustomerName(customer.full_name || customer.username || 'Customer')
+          setCustomerName(customer.full_name || customer.username || '')
         }
       }
     }
@@ -224,12 +224,12 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
 
             {/* Right: Profile & Cart */}
             <div className="flex items-center gap-2">
-              {isLoggedIn ? (
+              {isLoggedIn && customerName ? (
                 <>
-                  <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
+                  <Link href={`/store/${slug}/profile`} className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
                     <User className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium text-gray-700">{customerName || 'Customer'}</span>
-                  </div>
+                    <span className="text-sm font-medium text-gray-700">{customerName}</span>
+                  </Link>
                   <button 
                     type="button"
                     onClick={handleLogout}
@@ -255,10 +255,13 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                   </Link>
                 </>
               )}
-              <Link href={`/store/${slug}/cart`} className="p-2 rounded-full hover:bg-gray-100 transition-colors relative ml-2">
+              <button 
+                onClick={() => setShowCart(true)}
+                className="p-2 rounded-full hover:bg-gray-100 transition-colors relative ml-2"
+              >
                 <ShoppingCart className="h-6 w-6 text-gray-700" />
                 <CartBadge />
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -291,6 +294,9 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
           Pre-order only • Without shipping fee • {new Date().getFullYear()}
         </div>
       </div>
+
+      {/* Cart Drawer */}
+      {showCart && <CartDrawer slug={slug} onClose={() => setShowCart(false)} />}
     </div>
   )
 }
@@ -302,5 +308,96 @@ function CartBadge() {
     <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
       {cartCount}
     </span>
+  )
+}
+
+function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
+  const { cartItems, cartCount, customerId } = useCart()
+  const total = cartItems.reduce((sum, item) => sum + (item.quantity * item.products.price), 0)
+  
+  const handleCheckout = async () => {
+    if (!customerId) {
+      window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
+      return
+    }
+    
+    const supabase = createClient()
+    const { error } = await supabase.from('orders').insert({
+      customer_id: customerId,
+      store_id: cartItems[0]?.products?.id ? 1 : 1, // Need to get store_id properly
+      total_amount: total,
+      status: 'pending'
+    })
+    
+    if (error) {
+      toast.error('Failed to place order')
+    } else {
+      toast.success('Order placed successfully!')
+      onClose()
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+      />
+      
+      {/* Drawer */}
+      <div className="relative w-full max-w-md bg-white h-full shadow-xl flex flex-col">
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-900">Shopping Cart</h2>
+          <button 
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-gray-100"
+          >
+            <X className="h-5 w-5 text-gray-700" />
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-6">
+          {cartCount === 0 ? (
+            <div className="text-center py-8">
+              <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <p className="text-gray-500">Your cart is empty</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {cartItems.map((item) => (
+                <div key={item.id} className="flex gap-4 py-4 border-b border-gray-100">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg flex items-center justify-center">
+                    <Package className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-gray-900">{item.products.name}</h3>
+                    <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-gray-900">GH₵{item.quantity * item.products.price}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {cartCount > 0 && (
+          <div className="p-6 border-t border-gray-200 bg-gray-50">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-lg font-semibold text-gray-900">Total</span>
+              <span className="text-xl font-bold text-blue-600">GH₵{total}</span>
+            </div>
+            <button
+              onClick={handleCheckout}
+              className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Place Order
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

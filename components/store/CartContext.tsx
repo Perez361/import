@@ -8,6 +8,7 @@ interface CartItem {
   quantity: number
   product_id: string
   products: {
+    id: string
     name: string
     price: number
     image_url: string | null
@@ -67,6 +68,7 @@ export function CartProvider({
                 product_id,
                 quantity,
                 products (
+                  id,
                   name,
                   price,
                   image_url
@@ -80,6 +82,7 @@ export function CartProvider({
             const items = cartData.cart_items.map((item: any): CartItem => ({
               ...item,
               products: item.products as {
+                id: string
                 name: string
                 price: number
                 image_url: string | null
