@@ -40,11 +40,18 @@ export async function getCustomerUser() {
   return customer
 }
 
+
 /**
  * Get the store slug for a customer user
  */
 export async function getCustomerStoreSlug(): Promise<string | null> {
   const customer = await getCustomerUser()
   if (!customer) return null
-  return customer.store_slug
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('importers')
+    .select('store_slug')
+    .eq('id', customer.store_id)
+    .single()
+  return data?.store_slug || null
 }

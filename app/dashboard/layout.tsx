@@ -15,8 +15,19 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
+  // Block customers from dashboard
+  const customer = await getCustomerUser()
+  if (customer) {
+    const storeSlug = await getCustomerStoreSlug()
+    redirect(`/store/${storeSlug}`)
+  }
+
   const importer = await getImporter(user.id)
-  const businessName = importer?.business_name || user.user_metadata?.business_name || 'My Business'
+  if (!importer) {
+    redirect('/login')
+  }
+
+  const businessName = importer.business_name
   const email = user.email || ''
 
   return (

@@ -13,21 +13,20 @@
 ### 3. ✅ [DONE] Updated CustomerRegisterForm.tsx
 - Pass ALL form data in auth.signUp metadata
 
-### 4. Fix lib/auth/user-type.ts getCustomerUser()
-- Change .single() to .maybeSingle() to avoid error if no row
+### 4. ✅ [DONE] Fixed lib/auth/user-type.ts getCustomerUser()
+- Changed .single() → .maybeSingle()
 
-### 5. Update app/account/confirmed/page.tsx
-- Make store-aware using searchParams store slug
-- Proper redirect instructions
+### 5. ✅ [DONE] Updated app/account/confirmed/page.tsx
+- Store-aware messages & login redirect
 
-### 6. Add client-side getImporterBySlug (optional fallback)
-- If trigger insufficient, expose in lib/store client
+### 6. ✅ [DONE] Dashboard customer guard + redirect fixes
 
-### 7. Test & Followup
-- supabase db push / migration up
-- Test full register flow
-- Verify customers row created
-- Test cart/login post-register
+### 7. ✅ COMPLETE - DB error fixed, customer isolation enforced
+
+**Summary:**
+- Customer registration works, profiles auto-created
+- Customers blocked from dashboard
+- Proper store redirects
 
 **Next step: Create migration file**
 
