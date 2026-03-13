@@ -1,5 +1,4 @@
--- Enable RLS on auth.users (usually already enabled)
-ALTER TABLE auth.users ENABLE ROW LEVEL SECURITY;
+-- RLS on auth.users managed by Supabase - already enabled
 
 -- Create importers table
 CREATE TABLE IF NOT EXISTS public.importers (

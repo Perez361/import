@@ -63,23 +63,7 @@ export default function RegisterForm() {
       return
     }
 
-    if (signupResult?.user) {
-      const { error: profileError } = await supabase
-        .from('importers')
-        .upsert({
-          id: signupResult.user.id,
-          business_name: data.businessName,
-          full_name: data.fullName,
-          username: data.username,
-          phone: data.phone,
-          location: data.location,
-        })
-
-      if (profileError) {
-        toast.error(`Profile save failed: ${profileError.message}`)
-      }
-    }
-
+    toast.success('Account created! Check your email.')
     setSubmitted(true)
   }
 
