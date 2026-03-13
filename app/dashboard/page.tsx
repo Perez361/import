@@ -20,7 +20,9 @@ const statCards: StatCard[] = [
   { label: 'Products', value: '0', icon: Package2, note: 'Coming in Phase 2' },
   { label: 'Orders', value: '0', icon: ClipboardList, note: 'Coming in Phase 2' },
   { label: 'Shipments', value: '0', icon: Truck, note: 'Coming in Phase 2' },
-  { label: 'Revenue', value: '₦0', icon: TrendingUp, note: 'Coming in Phase 2' },
+  { label: 'Revenue', value: 'GH₵0', icon: TrendingUp, note: 'Coming in Phase 2' },
+
+
 ]
 
 export default async function DashboardPage() {

@@ -112,7 +112,7 @@ export default function RegisterForm() {
       <FormInput
         label="Phone Number"
         type="tel"
-        placeholder="+234 800 000 0000"
+placeholder="+233 80 000 0000"
         error={errors.phone?.message}
         {...register('phone')}
       />
@@ -120,7 +120,7 @@ export default function RegisterForm() {
       {/* Location */}
       <FormInput
         label="Location"
-        placeholder="Lagos, Nigeria"
+placeholder="Accra, Ghana"
         error={errors.location?.message}
         {...register('location')}
       />
