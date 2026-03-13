@@ -1,4 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServerSupabase } from '@/lib/supabase/server-only'
+
+export async function createClient() {
+  return createServerSupabase()
+}
 import { slugify } from '@/lib/utils'
 
 // Get importer by store_slug

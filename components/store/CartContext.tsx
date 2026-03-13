@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getCartCount, upsertCartItem } from '@/lib/store'
 
 interface CartItem {
   id: string
@@ -42,33 +41,100 @@ export function CartProvider({
   useEffect(() => {
     const initCart = async () => {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
       
-      if (user) {
-        // TODO: Get customer_id and store_id from user metadata or query
-        // For now use dummy for demo
-        // setCustomerId(user.user_metadata.customer_id)
-        // setStoreId(user.user_metadata.store_id)
+      if (session?.user) {
+        const userId = session.user.id
+        // TODO: Query customer record by user_id and store_slug
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('id, store_id')
+          .eq('user_id', userId)
+          .eq('store_id', slug)
+          .single()
+        
+        if (customer) {
+          setCustomerId(customer.id)
+          setStoreId(customer.store_id)
+          
+          // Load cart
+          const { data: cartData } = await supabase
+            .from('carts')
+            .select(`
+              id,
+              cart_items (
+                id,
+                product_id,
+                quantity,
+                products (
+                  name,
+                  price,
+                  image_url
+                )
+              )
+            `)
+            .eq('customer_id', customer.id)
+            .single()
+          
+          if (cartData?.cart_items) {
+            const items = cartData.cart_items.map((item: any): CartItem => ({
+              ...item,
+              products: item.products as {
+                name: string
+                price: number
+                image_url: string | null
+              }
+            }))
+            setCartItems(items)
+            setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
+          }
+        }
       }
       
       setLoading(false)
     }
 
     initCart()
-  }, [])
+  }, [slug])
 
   const addToCart = async (productId: string) => {
     if (!customerId || !storeId) {
-      // Redirect to login
       window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
       return
     }
 
+    const supabase = createClient()
     try {
-      await upsertCartItem(customerId, storeId!, productId)
-      // Update count
-      const count = await getCartCount(customerId, storeId!)
-      setCartCount(count)
+      // Upsert cart item client-side
+      const { data: cart } = await supabase
+        .from('carts')
+        .select('id')
+        .eq('customer_id', customerId)
+        .eq('store_id', storeId)
+        .single()
+
+      if (!cart) {
+        const { data: newCart } = await supabase
+          .from('carts')
+          .insert({ customer_id: customerId, store_id: storeId })
+          .select('id')
+          .single()
+      }
+
+      await supabase
+        .from('cart_items')
+        .upsert({ 
+          cart_id: cart?.id || (await supabase.from('carts').select('id').eq('customer_id', customerId).single()).data?.id, 
+          product_id: productId, 
+          quantity: 1 
+        }, { onConflict: 'cart_id,product_id' })
+      
+      // Refresh cart
+      const { data: { session: updatedSession } } = await supabase.auth.getSession()
+      if (updatedSession?.user) {
+        // Reload cart data
+        location.reload()
+      }
     } catch (error) {
       console.error('Add to cart error:', error)
     }
@@ -97,4 +163,3 @@ export const useCart = () => {
   }
   return context
 }
-

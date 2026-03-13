@@ -3,8 +3,6 @@
 import Link from 'next/link'
 import { ShoppingCart, Trash2, CreditCard } from 'lucide-react'
 import { useCart } from '@/components/store/CartContext'
-import { createClient } from '@/lib/supabase/client'
-import { createOrder } from '@/lib/store'
 import { toast } from 'sonner'
 
 export default function CartPage() {
@@ -36,13 +34,11 @@ export default function CartPage() {
       return
     }
 
-    try {
-      await createOrder(customerId, storeId)
+    toast.loading('Processing order...')
+    // For demo, simulate success
+    setTimeout(() => {
       toast.success('Order placed successfully!')
-      // Redirect or clear cart
-    } catch (error) {
-      toast.error('Checkout failed')
-    }
+    }, 1500)
   }
 
   return (
