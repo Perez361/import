@@ -1,7 +1,9 @@
 import { getImporterBySlug, getProductsBySlug } from '@/lib/store'
-import { Package, Phone, MapPin, ShoppingCart } from 'lucide-react'
+import { getCustomerUser } from '@/lib/auth/user-type'
+import { Package, Phone, MapPin, ShoppingCart, User, LogOut } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { createClient } from '@/lib/supabase/server'
 
 interface Product {
   name: string
@@ -18,6 +20,18 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   }
 
   const products = await getProductsBySlug(slug) as Product[]
+
+  // Check if customer is logged in for this store
+  const customer = await getCustomerUser()
+  const isLoggedIn = customer?.importers?.store_slug === slug
+  const customerName = customer?.full_name || customer?.username || 'Customer'
+
+  // Handle logout
+  const handleLogout = async () => {
+    'use server'
+    const supabase = await createClient()
+    await supabase.auth.signOut()
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -45,18 +59,42 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
 
             {/* Right: Profile & Cart */}
             <div className="flex items-center gap-2">
-              <Link 
-                href={`/store/${slug}/login`}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-              >
-                Login
-              </Link>
-              <Link 
-                href={`/store/${slug}/register`}
-                className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Create Account
-              </Link>
+              {isLoggedIn ? (
+                <>
+                  <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
+                    <User className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-gray-700">{customerName}</span>
+                  </div>
+                  <form action={async () => {
+                    'use server'
+                    const supabase = await createClient()
+                    await supabase.auth.signOut()
+                  }}>
+                    <button 
+                      type="submit"
+                      className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                      title="Logout"
+                    >
+                      <LogOut className="h-5 w-5 text-gray-700" />
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <Link 
+                    href={`/store/${slug}/login`}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                  >
+                    Login
+                  </Link>
+                  <Link 
+                    href={`/store/${slug}/register`}
+                    className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Create Account
+                  </Link>
+                </>
+              )}
               <Link href={`/store/${slug}/cart`} className="p-2 rounded-full hover:bg-gray-100 transition-colors relative ml-2">
                 <ShoppingCart className="h-6 w-6 text-gray-700" />
                 <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">0</span>
