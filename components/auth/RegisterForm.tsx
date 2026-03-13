@@ -80,7 +80,7 @@ export default function RegisterForm() {
           </p>
         </div>
         <Link
-          href="/login"
+          href="/account/login"
           className="mt-1 text-sm font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors"
         >
           Back to Login
@@ -170,7 +170,7 @@ placeholder="Accra, Ghana"
       <p className="text-center text-sm text-(--color-text-muted)">
         Already have an account?{' '}
         <Link
-          href="/login"
+          href="/account/login"
           className="font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors"
         >
           Log in

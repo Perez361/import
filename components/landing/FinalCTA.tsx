@@ -18,14 +18,14 @@ export default function FinalCTA() {
         </p>
         <div className="mt-8 flex flex-col items-stretch gap-3 px-2 sm:mt-10 sm:flex-row sm:items-center sm:justify-center sm:px-0 sm:gap-4">
           <Link
-            href="/register"
+            href="/account/register"
             className="group flex items-center justify-center gap-2 rounded-xl bg-(--color-brand) px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-600/30 transition-all hover:bg-(--color-brand-dark) hover:-translate-y-0.5 sm:px-8 sm:py-4"
           >
             Get Started — It&apos;s Free
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </Link>
           <Link
-            href="/login"
+            href="/account/login"
             className="flex items-center justify-center rounded-xl border border-white/20 px-6 py-3.5 text-base font-semibold text-slate-300 transition-colors hover:text-white sm:px-8 sm:py-4"
           >
             Already have an account?

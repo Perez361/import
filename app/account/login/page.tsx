@@ -1,15 +1,14 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Package, ArrowLeft } from 'lucide-react'
-import RegisterForm from '@/components/auth/RegisterForm'
-import { getAuthenticatedUser } from '@/lib/auth/session'
+import LoginForm from '@/components/auth/LoginForm'
 import { getImporterUser, getCustomerStoreSlug } from '@/lib/auth/user-type'
 
 export const metadata = {
-  title: 'Create Account – ImportFlow PRO',
+  title: 'Login – ImportFlow PRO',
 }
 
-export default async function RegisterPage() {
+export default async function AccountLoginPage() {
   // Check if user is already authenticated as importer - redirect to dashboard
   const importer = await getImporterUser()
   if (importer) {
@@ -48,13 +47,13 @@ export default async function RegisterPage() {
       {/* Card */}
       <div className="w-full max-w-md rounded-2xl border border-(--color-border) bg-(--color-card) p-5 shadow-sm sm:p-8">
         <div className="mb-6 flex flex-col gap-1.5 sm:mb-8">
-          <h1 className="text-2xl font-bold text-(--color-text-primary)">Create your account</h1>
+          <h1 className="text-2xl font-bold text-(--color-text-primary)">Welcome back</h1>
           <p className="text-sm text-(--color-text-muted)">
-            Start managing your importation business today.
+            Sign in to your ImportFlow PRO account.
           </p>
         </div>
 
-        <RegisterForm />
+        <LoginForm />
       </div>
     </div>
   )
