@@ -42,11 +42,20 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
             </div>
 
             {/* Right: Profile & Cart */}
-            <div className="flex items-center gap-3">
-              <button className="p-2 rounded-full hover:bg-gray-100 transition-colors">
-                <User className="h-6 w-6 text-gray-700" />
-              </button>
-              <button className="p-2 rounded-full hover:bg-gray-100 transition-colors relative">
+            <div className="flex items-center gap-2">
+              <a 
+                href="/login" 
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+              >
+                Login
+              </a>
+              <a 
+                href="/register" 
+                className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Create Account
+              </a>
+              <button className="p-2 rounded-full hover:bg-gray-100 transition-colors relative ml-2">
                 <ShoppingCart className="h-6 w-6 text-gray-700" />
                 <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">0</span>
               </button>
