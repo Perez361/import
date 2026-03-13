@@ -29,15 +29,16 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
               <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 {importer.business_name}
               </h1>
-              <div className="mt-3 space-y-1">
-                <div className="flex items-center gap-2 text-gray-700">
+              <div className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+                <span className="flex items-center gap-1">
                   <Phone className="h-4 w-4" />
-                  <span className="text-sm">{importer.phone}</span>
-                </div>
-                <div className="flex items-center gap-2 text-gray-700">
+                  {importer.phone}
+                </span>
+                <span className="text-gray-400">|</span>
+                <span className="flex items-center gap-1">
                   <MapPin className="h-4 w-4" />
-                  <span className="text-sm">{importer.location}</span>
-                </div>
+                  {importer.location}
+                </span>
               </div>
             </div>
 
