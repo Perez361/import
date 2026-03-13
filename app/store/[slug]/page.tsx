@@ -1,5 +1,5 @@
 import { getImporterBySlug, getProductsBySlug } from '@/lib/store'
-import { Package, Phone, MapPin, ShoppingCart } from 'lucide-react'
+import { Package, Phone, MapPin, ShoppingCart, User, Menu } from 'lucide-react'
 import Image from 'next/image'
 
 interface Product {
@@ -22,21 +22,34 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Hero */}
       <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
-              {importer.business_name}
-            </h1>
-            <p className="text-xl text-gray-600 mb-8">Mini Importation - Pre-Order Products</p>
-            <div className="flex flex-col md:flex-row gap-4 justify-center items-center max-w-md mx-auto mb-12">
-              <div className="flex items-center gap-2 text-gray-700">
-                <Phone className="h-5 w-5" />
-                {importer.phone}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex justify-between items-start">
+            {/* Left: Business Info */}
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                {importer.business_name}
+              </h1>
+              <div className="mt-3 space-y-1">
+                <div className="flex items-center gap-2 text-gray-700">
+                  <Phone className="h-4 w-4" />
+                  <span className="text-sm">{importer.phone}</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-700">
+                  <MapPin className="h-4 w-4" />
+                  <span className="text-sm">{importer.location}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-gray-700">
-                <MapPin className="h-5 w-5" />
-                {importer.location}
-              </div>
+            </div>
+
+            {/* Right: Profile & Cart */}
+            <div className="flex items-center gap-3">
+              <button className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                <User className="h-6 w-6 text-gray-700" />
+              </button>
+              <button className="p-2 rounded-full hover:bg-gray-100 transition-colors relative">
+                <ShoppingCart className="h-6 w-6 text-gray-700" />
+                <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">0</span>
+              </button>
             </div>
           </div>
         </div>
