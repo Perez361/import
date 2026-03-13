@@ -43,7 +43,7 @@ export default function CustomerLoginForm({ slug }: { slug: string }) {
     }
 
     toast.success('Welcome back!')
-    router.push(redirectTo)
+    await router.push(redirectTo)
     router.refresh()
   }
 
