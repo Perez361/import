@@ -1,25 +1,22 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Package, ArrowLeft } from 'lucide-react'
-import RegisterForm from '@/components/auth/RegisterForm'
+import LoginForm from '@/components/auth/LoginForm'
 import { getImporterUser, getCustomerStoreSlug } from '@/lib/auth/user-type'
 
 export const metadata = {
-  title: 'Create Account – ImportFlow PRO',
+  title: 'Login – ImportFlow PRO',
 }
 
-export default async function AccountRegisterPage() {
+export default async function LoginPage() {
   // Check if user is already authenticated as importer - redirect to dashboard
   const importer = await getImporterUser()
   if (importer) {
     redirect('/dashboard')
   }
 
-  // Check if user is logged in as customer - redirect to their store
-  const customerStoreSlug = await getCustomerStoreSlug()
-  if (customerStoreSlug) {
-    redirect(`/store/${customerStoreSlug}`)
-  }
+  // Always show the importer login form - don't redirect logged-in customers to their store
+  // (Customers should use the store-specific login at /store/[slug]/login)
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-(--color-surface) px-4 py-12">
@@ -47,13 +44,13 @@ export default async function AccountRegisterPage() {
       {/* Card */}
       <div className="w-full max-w-md rounded-2xl border border-(--color-border) bg-(--color-card) p-5 shadow-sm sm:p-8">
         <div className="mb-6 flex flex-col gap-1.5 sm:mb-8">
-          <h1 className="text-2xl font-bold text-(--color-text-primary)">Create your account</h1>
+          <h1 className="text-2xl font-bold text-(--color-text-primary)">Welcome back</h1>
           <p className="text-sm text-(--color-text-muted)">
-            Start managing your importation business today.
+            Sign in to your ImportFlow PRO account.
           </p>
         </div>
 
-        <RegisterForm />
+        <LoginForm />
       </div>
     </div>
   )

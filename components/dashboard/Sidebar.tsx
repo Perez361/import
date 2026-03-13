@@ -25,7 +25,7 @@ export default function Sidebar({ businessName }: SidebarProps) {
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
-    window.location.href = '/account/login'
+    window.location.href = '/login'
   }
 
   const navItems = [

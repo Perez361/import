@@ -41,7 +41,7 @@ export default function ConfirmedPage({
           </div>
 
           <Link
-            href={searchParams.store ? `/store/${searchParams.store}/login` : '/account/login'}
+            href={searchParams.store ? `/store/${searchParams.store}/login` : '/login'}
             className="w-full rounded-lg bg-(--color-brand) px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-(--color-brand-dark) flex items-center justify-center gap-2"
           >
             <ArrowRight className="h-4 w-4" />
@@ -50,7 +50,7 @@ export default function ConfirmedPage({
 
           <p className="text-xs text-(--color-text-muted)">
             New to ImportFlow?{' '}
-            <Link href="/account/register" className="text-(--color-brand) hover:text-(--color-brand-dark) font-medium">
+            <Link href="/register" className="text-(--color-brand) hover:text-(--color-brand-dark) font-medium">
               Create another account
             </Link>
           </p>

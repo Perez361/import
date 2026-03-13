@@ -32,14 +32,14 @@ export default function Hero() {
         {/* CTA Buttons */}
         <div className="mt-8 flex flex-col items-stretch justify-center gap-3 px-2 sm:mt-12 sm:flex-row sm:items-center sm:px-0 sm:gap-4">
           <Link
-            href="/account/register"
+            href="/register"
             className="group flex items-center justify-center gap-2 rounded-xl bg-(--color-brand) px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-600/30 transition-all hover:bg-(--color-brand-dark) hover:shadow-blue-600/50 hover:-translate-y-0.5 sm:px-8 sm:py-4"
           >
             Create Free Account
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </Link>
           <Link
-            href="/account/login"
+            href="/login"
             className="flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 py-3.5 text-base font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/10 hover:-translate-y-0.5 sm:px-8 sm:py-4"
           >
             Login

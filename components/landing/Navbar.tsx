@@ -18,13 +18,13 @@ export default function Navbar() {
         {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
-            href="/account/login"
+            href="/login"
             className="rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white sm:px-4"
           >
             Login
           </Link>
           <Link
-            href="/account/register"
+            href="/register"
             className="rounded-lg bg-(--color-brand) px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-(--color-brand-dark) sm:px-4"
           >
             <span className="sm:hidden">Sign Up</span>

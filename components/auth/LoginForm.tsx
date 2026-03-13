@@ -80,7 +80,7 @@ export default function LoginForm() {
       <p className="text-center text-sm text-(--color-text-muted)">
         Don&apos;t have an account?{' '}
         <Link
-          href="/account/register"
+          href="/register"
           className="font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors"
         >
           Create one free
