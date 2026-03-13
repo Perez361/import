@@ -13,10 +13,13 @@ WHERE store_slug IS NULL OR store_slug = '';
 DROP INDEX IF EXISTS importers_store_slug_idx;
 CREATE INDEX importers_store_slug_idx ON public.importers (LOWER(store_slug));
 
--- 4. Ensure public can read importers (for storefront)
-DROP POLICY IF EXISTS "Public importers profile for authenticated users" ON public.importers;
-DROP POLICY IF EXISTS "Public can view importers" ON public.importers;
-CREATE POLICY "Public can view importers" ON public.importers FOR SELECT USING (true);
+-- 4. Ensure public can read importers (for storefront) - only create if doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public can view importers' AND tablename = 'importers') THEN
+    CREATE POLICY "Public can view importers" ON public.importers FOR SELECT USING (true);
+  END IF;
+END $$;
 
 -- 5. Verify the fix - should return importers with store_slug
 SELECT id, username, business_name, store_slug FROM public.importers LIMIT 10;

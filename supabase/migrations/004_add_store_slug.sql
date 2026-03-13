@@ -10,30 +10,10 @@ SET store_slug = LOWER(username)
 WHERE store_slug IS NULL OR store_slug = '';
 
 -- Allow public read access to importers for storefront
-DROP POLICY IF EXISTS "Public importers profile for authenticated users" ON public.importers;
-DROP POLICY IF EXISTS "Anyone can view importers" ON public.importers;
-CREATE POLICY "Public can view importers" ON public.importers FOR SELECT USING (true);
-
--- Update the trigger function to include store_slug
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-DECLARE
-  generated_slug text;
+-- Only create if doesn't exist (skip if already exists)
+DO $$
 BEGIN
-  -- Generate store_slug from username
-  generated_slug := LOWER(TRIM(NEW.raw_user_meta_data ->> 'username'));
-  generated_slug := REGEXP_REPLACE(generated_slug, '[^a-z0-9_]', '', 'g');
-  
-  INSERT INTO public.importers (id, business_name, full_name, username, phone, location, store_slug)
-  VALUES (
-    NEW.id,
-    (NEW.raw_user_meta_data ->> 'business_name')::text,
-    (NEW.raw_user_meta_data ->> 'full_name')::text,
-    (NEW.raw_user_meta_data ->> 'username')::text,
-    (NEW.raw_user_meta_data ->> 'phone')::text,
-    (NEW.raw_user_meta_data ->> 'location')::text,
-    generated_slug
-  );
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public can view importers' AND tablename = 'importers') THEN
+    CREATE POLICY "Public can view importers" ON public.importers FOR SELECT USING (true);
+  END IF;
+END $$;
