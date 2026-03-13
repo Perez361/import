@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { slugify } from '@/lib/utils' // Assume utility or inline
 
-// Slugify function if not exists
+// Slugify function (duplicated from utils.ts for self-contained)
 function slugify(text: string): string {
   return text.toLowerCase()
     .trim()

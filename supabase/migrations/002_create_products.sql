@@ -22,16 +22,16 @@ CREATE TABLE IF NOT EXISTS public.products (
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies: Users access own importer's products
-CREATE POLICY \"Users can view own products\" ON public.products FOR SELECT 
+CREATE POLICY "Users can view own products" ON public.products FOR SELECT 
   USING (importer_id = auth.uid());
 
-CREATE POLICY \"Users can insert own products\" ON public.products FOR INSERT 
+CREATE POLICY "Users can insert own products" ON public.products FOR INSERT 
   WITH CHECK (importer_id = auth.uid());
 
-CREATE POLICY \"Users can update own products\" ON public.products FOR UPDATE 
+CREATE POLICY "Users can update own products" ON public.products FOR UPDATE 
   USING (importer_id = auth.uid()) WITH CHECK (importer_id = auth.uid());
 
-CREATE POLICY \"Users can delete own products\" ON public.products FOR DELETE 
+CREATE POLICY "Users can delete own products" ON public.products FOR DELETE 
   USING (importer_id = auth.uid());
 
 -- Indexes
