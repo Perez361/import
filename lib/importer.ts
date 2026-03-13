@@ -14,8 +14,30 @@ export async function getImporter(userId: string) {
     return null
   }
 
+  // Auto-generate store_slug if null
+  if (!data.store_slug) {
+    const slug = slugify(data.business_name || data.username)
+    const { error: updateError } = await supabase
+      .from('importers')
+      .update({ store_slug: slug })
+      .eq('id', userId)
+    if (!updateError) {
+      data.store_slug = slug
+    }
+  }
+
   return data
 }
 
+// Slugify
+function slugify(text: string): string {
+  return text.toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 // You can create a client-side version in components or another lib/client.ts
+
 
