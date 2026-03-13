@@ -130,16 +130,17 @@ function ProductCard({ product, slug }: { product: Product; slug: string }) {
         {product.description && (
           <p className="text-sm text-gray-600 mb-4 line-clamp-2">{product.description}</p>
         )}
-        <div className="flex justify-between items-center">
-          <span className="text-2xl font-bold text-blue-600">GH₵{product.price}</span>
-          <button
-            onClick={handleAddToCart}
-            className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Add to Cart
-          </button>
-        </div>
+                <div className="flex flex-col gap-1 items-start">
+                  <span className="text-2xl font-bold text-blue-600">GH₵{product.price}</span>
+                  <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">No shipping fee</span>
+                </div>
+                <button
+                  onClick={handleAddToCart}
+                  className="w-full mt-2 flex items-center justify-center gap-1 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add to Cart
+                </button>
       </div>
     </div>
   )
