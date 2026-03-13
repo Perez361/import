@@ -8,7 +8,7 @@ export async function getImporterBySlug(slug: string) {
   const { data, error } = await supabase
     .from('importers')
     .select('*')
-    .eq('store_slug', slug)
+    .ilike('store_slug', slug)
     .single()
 
   if (error || !data) return null
