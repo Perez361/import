@@ -47,7 +47,7 @@ export default async function CustomerRegisterPage({
           <Package className="h-5 w-5 text-white" />
         </div>
         <span className="text-xl font-bold text-(--color-text-primary) tracking-tight">
-          New Shopper
+          New Customer
         </span>
       </div>
 
