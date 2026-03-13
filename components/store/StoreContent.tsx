@@ -9,6 +9,14 @@ import { createClient } from '@/lib/supabase/client'
 import { getCustomerUser } from '@/lib/auth/user-type'
 import { logoutAction } from '@/lib/actions'
 
+function handleLogout() {
+  const logout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+  }
+  logout()
+}
+
 interface Product {
   id: string
   name: string
@@ -145,26 +153,50 @@ function ProductCard({ product, slug }: { product: Product; slug: string }) {
 export default function StoreContent({ slug, importer, products }: StoreContentProps) {
   const { customerId } = useCart()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [customerName, setCustomerName] = useState('')
   
   useEffect(() => {
     const checkAuth = async () => {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       setIsLoggedIn(!!session)
+      
+      // Get customer name if logged in
+      if (session?.user) {
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('full_name, username')
+          .eq('user_id', session.user.id)
+          .single()
+        
+        if (customer) {
+          setCustomerName(customer.full_name || customer.username || 'Customer')
+        }
+      }
     }
     checkAuth()
     
     // Also listen for auth changes
     const supabase = createClient()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setIsLoggedIn(!!session)
+      if (session?.user) {
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('full_name, username')
+          .eq('user_id', session.user.id)
+          .single()
+        
+        if (customer) {
+          setCustomerName(customer.full_name || customer.username || 'Customer')
+        }
+      } else {
+        setCustomerName('')
+      }
     })
     
     return () => subscription.unsubscribe()
   }, [])
-  
-  // Get customer name for display
-  const customerName = 'Customer' // This will be set by the auth context
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -196,17 +228,16 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                 <>
                   <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
                     <User className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium text-gray-700">Shopper</span>
+                    <span className="text-sm font-medium text-gray-700">{customerName || 'Customer'}</span>
                   </div>
-                  <form action={logoutAction}>
-                    <button 
-                      type="submit"
-                      className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                      title="Logout"
-                    >
-                      <LogOut className="h-5 w-5 text-gray-700" />
-                    </button>
-                  </form>
+                  <button 
+                    type="button"
+                    onClick={handleLogout}
+                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    title="Logout"
+                  >
+                    <LogOut className="h-5 w-5 text-gray-700" />
+                  </button>
                 </>
               ) : (
                 <>
