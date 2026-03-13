@@ -34,7 +34,7 @@ export async function getCustomerUser() {
     .from('customers')
     .select('*')
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
   if (error || !customer) return null
   return customer

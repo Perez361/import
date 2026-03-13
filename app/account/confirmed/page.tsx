@@ -2,10 +2,14 @@ import Link from 'next/link'
 import { Package, CheckCircle2, ArrowRight } from 'lucide-react'
 
 export const metadata = {
-  title: 'Account Confirmed – ImportFlow PRO',
+  title: 'Account Confirmed – ImportFlow',
 }
 
-export default function ConfirmedPage() {
+export default function ConfirmedPage({
+  searchParams
+}: {
+  searchParams: { store?: string }
+}) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-(--color-surface) px-4 py-12">
       {/* Logo */}
@@ -26,21 +30,22 @@ export default function ConfirmedPage() {
           </div>
           
           <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-bold text-(--color-text-primary)">
-              Account confirmed!
-            </h1>
-            <p className="text-sm text-(--color-text-muted) leading-relaxed">
-              Your importer profile is ready. Sign in to access your dashboard and 
-              start managing your importation business.
-            </p>
+          <h1 className="text-2xl font-bold text-(--color-text-primary)">
+            Account confirmed!
+          </h1>
+          <p className="text-sm text-(--color-text-muted) leading-relaxed">
+            {searchParams.store 
+              ? `Welcome to ${searchParams.store}! Check your email, confirm, then login to start shopping.`
+              : 'Your account is ready. Check your email to confirm then login.'}
+          </p>
           </div>
 
           <Link
-            href="/login"
+            href={searchParams.store ? `/store/${searchParams.store}/login` : '/login'}
             className="w-full rounded-lg bg-(--color-brand) px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-(--color-brand-dark) flex items-center justify-center gap-2"
           >
             <ArrowRight className="h-4 w-4" />
-            Login to Dashboard
+            {searchParams.store ? 'Login to Store' : 'Login to Dashboard'}
           </Link>
 
           <p className="text-xs text-(--color-text-muted)">

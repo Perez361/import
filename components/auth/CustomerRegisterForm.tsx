@@ -42,14 +42,20 @@ export default function CustomerRegisterForm({ slug }: { slug: string }) {
   const onSubmit = async (data: RegisterFormData) => {
     const supabase = createClient()
     
-    // First create user with store_slug metadata
+    // Create user with full customer metadata for trigger
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
         data: {
           store_slug: slug,
-          customer: true
+          customer: true,
+          full_name: data.fullName,
+          username: data.username,
+          contact: data.contact,
+          location: data.location,
+          shipping_address: data.shippingAddress,
+          email: data.email
         }
       }
     })
