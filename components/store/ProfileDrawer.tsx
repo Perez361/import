@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { User, Save, X, Package, Clock, Truck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -23,6 +23,8 @@ interface Order {
   status: string
   created_at: string
   order_items: {
+    id: string
+    quantity: number
     products: {
       name: string
       price: number
@@ -244,8 +246,8 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      {order.order_items.map((item) => (
-                        <div key={item.id} className="text-gray-600">
+                      {order.order_items.map((item, index) => (
+                        <div key={index} className="text-gray-600">
                           {item.products.name} x{item.quantity}
                         </div>
                       ))}

@@ -8,6 +8,7 @@ import { CartProvider, useCart } from '@/components/store/CartContext'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { logoutAction } from '@/lib/actions'
+import ProfileDrawer from '@/components/store/ProfileDrawer'
 
 function handleLogout() {
   logoutAction()
