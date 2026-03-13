@@ -3,16 +3,23 @@ import { redirect } from 'next/navigation'
 import { Package, ArrowLeft } from 'lucide-react'
 import LoginForm from '@/components/auth/LoginForm'
 import { getAuthenticatedUser } from '@/lib/auth/session'
+import { getImporterUser, getCustomerStoreSlug } from '@/lib/auth/user-type'
 
 export const metadata = {
   title: 'Login – ImportFlow PRO',
 }
 
 export default async function LoginPage() {
-  // Check if user is already authenticated - redirect to dashboard
-  const user = await getAuthenticatedUser()
-  if (user) {
+  // Check if user is already authenticated as importer - redirect to dashboard
+  const importer = await getImporterUser()
+  if (importer) {
     redirect('/dashboard')
+  }
+
+  // Check if user is logged in as customer - redirect to their store
+  const customerStoreSlug = await getCustomerStoreSlug()
+  if (customerStoreSlug) {
+    redirect(`/store/${customerStoreSlug}`)
   }
 
   return (

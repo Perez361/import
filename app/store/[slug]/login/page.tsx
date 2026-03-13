@@ -1,7 +1,9 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { Package, ArrowLeft } from 'lucide-react'
 import CustomerLoginForm from '@/components/auth/CustomerLoginForm'
 import { getImporterBySlug } from '@/lib/store'
+import { getImporterUser, getCustomerUser } from '@/lib/auth/user-type'
 
 export const metadata = {
   title: 'Login – Store Customer',
@@ -28,6 +30,24 @@ export default async function CustomerLoginPage({
         </div>
       </div>
     )
+  }
+
+  // Check if user is logged in as importer - redirect to dashboard
+  const importerUser = await getImporterUser()
+  if (importerUser) {
+    redirect('/dashboard')
+  }
+
+  // Check if user is logged in as a customer for a different store
+  const customer = await getCustomerUser()
+  if (customer && customer.store_slug !== slug) {
+    // User is customer for a different store, redirect to their store
+    redirect(`/store/${customer.store_slug}`)
+  }
+
+  // If user is customer for this store, redirect to the store
+  if (customer && customer.store_slug === slug) {
+    redirect(`/store/${slug}`)
   }
 
   return (
