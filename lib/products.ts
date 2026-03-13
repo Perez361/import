@@ -34,17 +34,17 @@ export async function createProduct(importerId: string, productData: {
 }) {
   const supabase = await createClient()
   
-  // Generate slug
-  const slug = slugify(productData.name)
+  // Generate slug - fallback if empty
+  const slug = productData.name ? slugify(productData.name) : 'no-name-product'
   
   const { data, error } = await supabase
     .from('products')
     .insert({
       importer_id: importerId,
-      name: productData.name,
+      name: productData.name || 'Unnamed Product',
       slug,
       price: productData.price,
-      description: productData.description,
+      description: productData.description || '',
       image_url: productData.image_url,
     })
     .select()
@@ -57,4 +57,5 @@ export async function createProduct(importerId: string, productData: {
 
   return data
 }
+
 
