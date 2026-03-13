@@ -10,11 +10,7 @@ import { toast } from 'sonner'
 import { logoutAction } from '@/lib/actions'
 
 function handleLogout() {
-  const logout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-  }
-  logout()
+  logoutAction()
 }
 
 interface Product {
