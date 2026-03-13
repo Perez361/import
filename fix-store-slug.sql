@@ -20,6 +20,3 @@ CREATE POLICY "Public can view importers" ON public.importers FOR SELECT USING (
 
 -- 5. Verify the fix - should return importers with store_slug
 SELECT id, username, business_name, store_slug FROM public.importers LIMIT 10;
-
--- 6. Test the lookup
--- SELECT * FROM public.importers WHERE LOWER(store_slug) = 'your-username';

@@ -16,7 +16,7 @@ CREATE POLICY "Public can view importers" ON public.importers FOR SELECT USING (
 
 -- Update the trigger function to include store_slug
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 DECLARE
   generated_slug text;
 BEGIN
@@ -36,4 +36,4 @@ BEGIN
   );
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
