@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getAuthenticatedUser } from '@/lib/auth/session'
 import { getImporter } from '@/lib/importer'
+import { getCustomerUser, getCustomerStoreSlug } from '@/lib/auth/user-type'
 import Sidebar from '@/components/dashboard/Sidebar'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
 
