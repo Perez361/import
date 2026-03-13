@@ -1,5 +1,6 @@
 import { getImporterBySlug, getProductsBySlug } from '@/lib/store'
-import { Package, Phone, MapPin, ShoppingCart, User, Menu } from 'lucide-react'
+import { Package, Phone, MapPin, ShoppingCart } from 'lucide-react'
+import Link from 'next/link'
 import Image from 'next/image'
 
 interface Product {
@@ -44,22 +45,22 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
 
             {/* Right: Profile & Cart */}
             <div className="flex items-center gap-2">
-              <a 
-                href="/login" 
+              <Link 
+                href={`/store/${slug}/login`}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
               >
                 Login
-              </a>
-              <a 
-                href="/register" 
+              </Link>
+              <Link 
+                href={`/store/${slug}/register`}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Create Account
-              </a>
-              <button className="p-2 rounded-full hover:bg-gray-100 transition-colors relative ml-2">
+              </Link>
+              <Link href={`/store/${slug}/cart`} className="p-2 rounded-full hover:bg-gray-100 transition-colors relative ml-2">
                 <ShoppingCart className="h-6 w-6 text-gray-700" />
-                <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">0</span>
-              </button>
+                <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">0</span>
+              </Link>
             </div>
           </div>
         </div>
