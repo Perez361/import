@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { CartProvider, useCart } from '@/components/store/CartContext'
 import { createClient } from '@/lib/supabase/client'
 import { getCustomerUser } from '@/lib/auth/user-type'
+import { logoutAction } from '@/lib/actions'
 
 interface Product {
   id: string
@@ -49,11 +50,7 @@ function StoreHeader({ slug, isLoggedIn, customerName }: {
                   <User className="h-4 w-4 text-blue-600" />
                   <span className="text-sm font-medium text-gray-700">{customerName}</span>
                 </div>
-                <form action={async () => {
-                  'use server'
-                  const supabase = await createClient()
-                  await supabase.auth.signOut()
-                }}>
+                <form action={logoutAction}>
                   <button 
                     type="submit"
                     className="p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -183,11 +180,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                     <User className="h-4 w-4 text-blue-600" />
                     <span className="text-sm font-medium text-gray-700">Shopper</span>
                   </div>
-                  <form action={async () => {
-                    'use server'
-                    const supabase = await createClient()
-                    await supabase.auth.signOut()
-                  }}>
+                  <form action={logoutAction}>
                     <button 
                       type="submit"
                       className="p-2 rounded-full hover:bg-gray-100 transition-colors"
