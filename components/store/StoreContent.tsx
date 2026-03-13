@@ -151,6 +151,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [customerName, setCustomerName] = useState('')
   const [showCart, setShowCart] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
   
   useEffect(() => {
     const checkAuth = async () => {
@@ -292,6 +293,9 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
         </div>
       </div>
 
+      {/* Profile Drawer */}
+      {showProfile && <ProfileDrawer slug={slug} onClose={() => setShowProfile(false)} />}
+      
       {/* Cart Drawer */}
       {showCart && <CartDrawer slug={slug} onClose={() => setShowCart(false)} />}
     </div>
