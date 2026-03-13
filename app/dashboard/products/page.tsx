@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAuthenticatedUser } from '@/lib/auth/session'
 import { getImporter } from '@/lib/importer'
 import { Package, Image, DollarSign, Tag, Edit3, Trash2, ShoppingCart } from 'lucide-react'
+import { getProductsByImporter } from '@/lib/products'
 
 export default async function ProductsPage() {
   const user = await getAuthenticatedUser()
@@ -12,22 +13,30 @@ export default async function ProductsPage() {
 
   const importer = await getImporter(user.id)
 
-  const demoProducts = [
-    { id: '#P001', name: 'Nike Air Max 90', stock: '12', costPrice: '320', sellingPrice: '650', status: 'In Stock', image: true },
-    { id: '#P002', name: 'iPhone 15 Pro 256GB', stock: '5', costPrice: '7200', sellingPrice: '9800', status: 'Low Stock', image: true },
-    { id: '#P003', name: 'Cotton T-Shirts Pack (6)', stock: '24', costPrice: '120', sellingPrice: '240', status: 'In Stock', image: true },
-    { id: '#P004', name: 'Samsung Galaxy S24 Ultra', stock: '3', costPrice: '6200', sellingPrice: '7500', status: 'Low Stock', image: false },
-    { id: '#P005', name: 'MacBook Air M2 512GB', stock: '8', costPrice: '9800', sellingPrice: '12400', status: 'In Stock', image: true },
-  ]
+  const products = await getProductsByImporter(user.id) || []
+
+  const totalProducts = products.length
+
+  const demoProducts = products.length === 0 ? [] : products.map((p: any) => ({
+    id: `#P${p.id.slice(-4)}`,
+    name: p.name,
+    price: p.price.toString(),
+    description: p.description || '',
+    image: !!p.image_url,
+    stock: 'Pre-order',
+    costPrice: '0',
+    sellingPrice: p.price.toString(),
+    status: 'Active'
+  }))
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">Products</h1>
-        <button className="flex items-center gap-2 rounded-xl bg-[var(--color-success)] px-6 py-2.5 text-sm font-semibold text-white shadow-lg hover:bg-[var(--color-success)]/90 transition-all">
+        <a href="/dashboard/products/new" className="flex items-center gap-2 rounded-xl bg-[var(--color-success)] px-6 py-2.5 text-sm font-semibold text-white shadow-lg hover:bg-[var(--color-success)]/90 transition-all">
           <Package className="h-4 w-4" />
           + Add New Product
-        </button>
+        </a>
       </div>
 
       <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden">
@@ -39,8 +48,8 @@ export default async function ProductsPage() {
               <div className="w-8 h-8 rounded-full bg-[var(--color-warning-light)] border-2 border-[var(--color-card)]" />
             </div>
             <div>
-              <p className="font-semibold text-[var(--color-text-primary)]">24 products total</p>
-              <p className="text-sm text-[var(--color-text-muted)]">12 low stock, 3 out of stock</p>
+              <p className="font-semibold text-[var(--color-text-primary)]">{totalProducts} products total</p>
+              <p className="text-sm text-[var(--color-text-muted)]">Pre-order available</p>
             </div>
           </div>
         </div>
@@ -59,7 +68,7 @@ export default async function ProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
-              {demoProducts.map((product) => (
+{demoProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-[var(--color-surface)] transition-colors">
                   <td className="px-6 py-4 font-mono text-sm text-[var(--color-text-muted)]">{product.id}</td>
                   <td className="px-6 py-4">

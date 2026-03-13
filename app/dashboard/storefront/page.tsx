@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getAuthenticatedUser } from '@/lib/auth/session'
 import { getImporter } from '@/lib/importer'
+import { slugify } from '@/lib/utils'
+import { getProductsByImporter } from '@/lib/products'
 import { Store, Eye, Link, Share2, Edit3, Trash2 } from 'lucide-react'
 
 export default async function StorefrontPage() {
@@ -12,9 +14,15 @@ export default async function StorefrontPage() {
 
   const importer = await getImporter(user.id)
   const businessName = importer?.business_name || 'My Store'
-  const storeSlug = importer?.store_slug || 'perez-imports'
+  const storeSlug = importer?.store_slug || slugify(businessName)
 
-  const demoProducts = [
+  const products = await getProductsByImporter(user.id) || []
+
+  const demoProducts = products.map((p: any) => ({
+    name: p.name,
+    price: `GH₵${p.price}`,
+    stock: 'Pre-order | Without shipping fee'
+  }))
     { name: 'Nike Air Max', price: 'GH₵650', stock: '12 in stock' },
     { name: 'iPhone 15 Pro', price: 'GH₵9,800', stock: '5 in stock' },
     { name: 'Samsung Galaxy S24', price: 'GH₵7,500', stock: '8 in stock' },
@@ -59,7 +67,7 @@ export default async function StorefrontPage() {
           <div className="space-y-3">
             <div className="flex justify-between py-2">
               <span className="text-sm text-[var(--color-text-muted)]">Products</span>
-              <span className="font-semibold text-[var(--color-text-primary)]">24</span>
+              <span className="font-semibold text-[var(--color-text-primary)]">{products.length}</span>
             </div>
             <div className="flex justify-between py-2">
               <span className="text-sm text-[var(--color-text-muted)]">Visitors</span>
