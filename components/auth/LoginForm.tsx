@@ -41,7 +41,7 @@ export default function LoginForm() {
     }
 
     toast.success('Welcome back!')
-    router.push('/dashboard')
+    await router.push('/dashboard')
     router.refresh()
   }
 

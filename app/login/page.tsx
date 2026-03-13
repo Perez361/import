@@ -1,12 +1,20 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { Package, ArrowLeft } from 'lucide-react'
 import LoginForm from '@/components/auth/LoginForm'
+import { getAuthenticatedUser } from '@/lib/auth/session'
 
 export const metadata = {
   title: 'Login – ImportFlow PRO',
 }
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  // Check if user is already authenticated - redirect to dashboard
+  const user = await getAuthenticatedUser()
+  if (user) {
+    redirect('/dashboard')
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-(--color-surface) px-4 py-12">
       {/* Back button */}
