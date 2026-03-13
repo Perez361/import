@@ -52,14 +52,18 @@ export default function NewProductPage() {
       .from('product-images')
       .getPublicUrl(path).data.publicUrl
 
-    // Insert product
+
+    // Insert product w/ slug
+    const slug = formData.name ? formData.name.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '') : 'unnamed'
+    
     const { error: insertError } = await supabase
       .from('products')
       .insert({
         importer_id: user.id,
         name: formData.name,
+        slug,
         price: parseFloat(formData.price),
-        description: formData.description || null,
+        description: formData.description || '',
         image_url: publicUrl
       })
 
@@ -69,6 +73,7 @@ export default function NewProductPage() {
       router.push('/dashboard/products')
       router.refresh()
     }
+
 
     setLoading(false)
   }
