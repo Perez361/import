@@ -142,11 +142,38 @@ export function CartProvider({
           quantity: 1 
         }, { onConflict: 'cart_id,product_id' })
       
-      // Refresh cart
-      const { data: { session: updatedSession } } = await supabase.auth.getSession()
-      if (updatedSession?.user) {
-        // Reload cart data
-        location.reload()
+      // Refresh cart data locally instead of full page reload
+      const { data: updatedCart } = await supabase
+        .from('carts')
+        .select(`
+          id,
+          cart_items (
+            id,
+            product_id,
+            quantity,
+            products (
+              id,
+              name,
+              price,
+              image_url
+            )
+          )
+        `)
+        .eq('customer_id', customerId)
+        .single()
+      
+      if (updatedCart?.cart_items) {
+        const items = updatedCart.cart_items.map((item: any): CartItem => ({
+          ...item,
+          products: item.products as {
+            id: string
+            name: string
+            price: number
+            image_url: string | null
+          }
+        }))
+        setCartItems(items)
+        setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
       }
     } catch (error) {
       console.error('Add to cart error:', error)
