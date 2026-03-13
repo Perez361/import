@@ -7,7 +7,7 @@ export async function getImporterBySlug(slug: string) {
   const { data, error } = await supabase
     .from('importers')
     .select('*')
-    .eq('store_slug', slug)
+    .eq('LOWER(store_slug)', slug.toLowerCase())
     .single()
 
   if (error || !data) return null
