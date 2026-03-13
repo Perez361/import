@@ -33,16 +33,26 @@ export default function DashboardHeader({ businessName, email }: DashboardHeader
           </span>
         </Link>
 
-        {/* Nav */}
-        <nav className="hidden items-center gap-1 sm:flex">
+        {/* Quick Actions */}
+        <div className="flex items-center gap-2">
           <Link
-            href="/dashboard"
-            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-(--color-brand) bg-(--color-brand-light)"
+            href="/dashboard/products/new"
+            className="flex items-center gap-2 rounded-lg bg-[var(--color-success)] px-4 py-2.5 text-sm font-semibold text-white shadow-lg hover:bg-[var(--color-success-dark)] transition-all"
           >
-            <LayoutDashboard className="h-4 w-4" />
-            Dashboard
+            <Package className="h-4 w-4" />
+            + Add Product
           </Link>
-        </nav>
+          
+          {/* Desktop Nav */}
+          <nav className="hidden items-center gap-1 lg:flex">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+            </Link>
+          </nav>
+        </div>
 
         {/* User + Logout */}
         <div className="flex items-center gap-4">
