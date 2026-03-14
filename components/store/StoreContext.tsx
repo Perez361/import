@@ -38,7 +38,7 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
   const [storeId, setStoreId] = useState<string | null>(initialCustomer?.storeId ?? null)
   const [customerName, setCustomerName] = useState(initialCustomer?.name ?? '')
   const [isLoggedIn, setIsLoggedIn] = useState(!!initialCustomer)
-  const [loading, setLoading] = useState(false)  // Server data loads instantly
+  const [loading, setLoading] = useState(true)  // Let dependents know when ready
 
   const fetchCustomer = useCallback(async (currentSlug: string) => {
     try {
@@ -93,7 +93,9 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
   }, [])
 
   useEffect(() => {
-    if (slug && !initialCustomer) {  // Skip if server provided valid initialCustomer
+    if (initialCustomer) {
+      setLoading(false)
+    } else if (slug) {
       fetchCustomer(slug)
     }
   }, [slug, fetchCustomer, initialCustomer])
