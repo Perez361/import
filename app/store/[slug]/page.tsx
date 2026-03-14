@@ -5,7 +5,7 @@ import { StorefrontWrapper } from '@/components/store/StorefrontWrapper'
 interface Product {
   id: string
   name: string
-  price: number
+  price: numberw
   image_url?: string
   description?: string
 }
