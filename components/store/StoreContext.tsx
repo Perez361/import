@@ -24,18 +24,21 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | null>(null)
 
+import { InitialCustomer } from '@/lib/auth/store-session'
+
 interface StoreProviderProps {
   children: ReactNode
   initialSlug: string
+  initialCustomer?: InitialCustomer
 }
 
-export function StoreProvider({ children, initialSlug }: StoreProviderProps) {
+export function StoreProvider({ children, initialSlug, initialCustomer }: StoreProviderProps) {
   const [slug, setSlug] = useState<string | null>(initialSlug)
-  const [customerId, setCustomerId] = useState<string | null>(null)
-  const [storeId, setStoreId] = useState<string | null>(null)
-  const [customerName, setCustomerName] = useState('')
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [customerId, setCustomerId] = useState<string | null>(initialCustomer?.id ?? null)
+  const [storeId, setStoreId] = useState<string | null>(initialCustomer?.storeId ?? null)
+  const [customerName, setCustomerName] = useState(initialCustomer?.name ?? '')
+  const [isLoggedIn, setIsLoggedIn] = useState(!!initialCustomer)
+  const [loading, setLoading] = useState(false)  // Server data loads instantly
 
   const fetchCustomer = useCallback(async (currentSlug: string) => {
     try {
@@ -90,10 +93,10 @@ export function StoreProvider({ children, initialSlug }: StoreProviderProps) {
   }, [])
 
   useEffect(() => {
-    if (slug) {
+    if (slug && !initialCustomer) {  // Skip if server provided valid initialCustomer
       fetchCustomer(slug)
     }
-  }, [slug, fetchCustomer])
+  }, [slug, fetchCustomer, initialCustomer])
 
   useEffect(() => {
     const supabase = createClient()

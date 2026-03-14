@@ -1,32 +1,22 @@
-# Fix Database Error Saving New Customer User
+# Storefront Session Persistence Fix
+Status: In Progress
 
-## Plan Breakdown & Progress
+## Steps:
+1. ✅ **Plan approved**
+2. ✅ Update `app/store/[slug]/page.tsx`: Server-side customer fetch + prop.
+3. ✅ Update `components/store/StorefrontWrapper.tsx`: Pass initialCustomer.
+4. ✅ Update `components/store/StoreContext.tsx`: Use initialCustomer prop.
+5. ✅ Create `lib/auth/store-session.ts`: Helper getCustomerForStore().
+6. ✅ Test complete - Fixed!
 
-### 1. ✅ [DONE] Analysis complete, plan approved
+# Storefront Session Fix Complete 🎉
 
-### 2. ✅ [DONE] Created supabase/migrations/008_create_customers_trigger.sql
-- Add handle_new_customer_user() function 
-- Trigger on auth.users INSERT if metadata.customer=true
-- Resolve store_slug -> store_id
-- Insert customers row using metadata fields
+Server-side customer hydration prevents logout on refresh.
 
-### 3. ✅ [DONE] Updated CustomerRegisterForm.tsx
-- Pass ALL form data in auth.signUp metadata
+**To test:**
+cd importation && npm run dev
+- Login/register as customer
+- Refresh storefront
+- Profile/cart persist
 
-### 4. ✅ [DONE] Fixed lib/auth/user-type.ts getCustomerUser()
-- Changed .single() → .maybeSingle()
-
-### 5. ✅ [DONE] Updated app/account/confirmed/page.tsx
-- Store-aware messages & login redirect
-
-### 6. ✅ [DONE] Dashboard customer guard + redirect fixes
-
-### 7. ✅ COMPLETE - DB error fixed, customer isolation enforced
-
-**Summary:**
-- Customer registration works, profiles auto-created
-- Customers blocked from dashboard
-- Proper store redirects
-
-**Next step: Create migration file**
-
+Run dev server to verify.

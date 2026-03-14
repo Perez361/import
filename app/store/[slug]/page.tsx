@@ -1,4 +1,5 @@
 import { getImporterBySlug, getProductsBySlug } from '@/lib/store'
+import { getCustomerForStore } from '@/lib/auth/store-session'
 import StoreContent from '@/components/store/StoreContent'
 import { StorefrontWrapper } from '@/components/store/StorefrontWrapper'
 
@@ -19,9 +20,10 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   }
 
   const products = await getProductsBySlug(slug) as Product[]
+  const initialCustomer = await getCustomerForStore(slug)
 
   return (
-    <StorefrontWrapper slug={slug}>
+    <StorefrontWrapper slug={slug} initialCustomer={initialCustomer}>
       <StoreContent 
         slug={slug} 
         importer={{
@@ -34,3 +36,4 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     </StorefrontWrapper>
   )
 }
+
