@@ -11,15 +11,6 @@ import { toast } from 'sonner'
 import { logoutAction } from '@/lib/actions'
 import ProfileDrawer from '@/components/store/ProfileDrawer'
 
-const handleLogout = useCallback(async () => {
-  try {
-    await logoutAction()
-    // Context will update via auth listener
-  } catch (error) {
-    toast.error('Logout failed')
-  }
-}, [])
-
 interface Product {
   id: string
   name: string
@@ -36,70 +27,6 @@ interface StoreContentProps {
     location: string
   }
   products: Product[]
-}
-
-function StoreHeader({ slug, isLoggedIn, customerName }: { 
-  slug: string
-  isLoggedIn: boolean
-  customerName: string
-}) {
-  const { cartCount } = useCart()
-  
-  return (
-    <div className="bg-white shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex justify-between items-start">
-          {/* Left: Business Info */}
-          <div>
-            {/* This will be passed as prop */}
-          </div>
-
-          {/* Right: Profile & Cart */}
-          <div className="flex items-center gap-2">
-            {isLoggedIn && customerName ? (
-              <>
-                <Link href={`/store/${slug}/profile`} className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                  <User className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium text-gray-700">{customerName}</span>
-                </Link>
-                <button 
-                  type="button"
-                  onClick={handleLogout}
-                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                  title="Logout"
-                >
-                  <LogOut className="h-5 w-5 text-gray-700" />
-                </button>
-              </>
-            ) : (
-              <>
-                <Link 
-                  href={`/store/${slug}/login`}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-                >
-                  Login
-                </Link>
-                <Link 
-                  href={`/store/${slug}/register`}
-                  className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Create Account
-                </Link>
-              </>
-            )}
-            <Link href={`/store/${slug}/cart`} className="p-2 rounded-full hover:bg-gray-100 transition-colors relative ml-2">
-              <ShoppingCart className="h-6 w-6 text-gray-700" />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 function ProductCard({ product, slug }: { product: Product; slug: string }) {
@@ -158,6 +85,15 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
   const store = useStore()
   const [showCart, setShowCart] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+  
+  const handleLogout = useCallback(async () => {
+    try {
+      await logoutAction()
+      // Context will update via auth listener
+    } catch (error) {
+      toast.error('Logout failed')
+    }
+  }, [])
   
   if (store.loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading store...</div>
