@@ -40,11 +40,9 @@ export function StoreProvider({ children, initialSlug }: StoreProviderProps) {
   const fetchCustomer = useCallback(async (currentSlug: string) => {
     try {
       const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
       
-      // Use getUser() instead of getSession() - it waits for auth to initialize
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      
-      if (userError || !user || !currentSlug) {
+      if (!session?.user || !currentSlug) {
         setIsLoggedIn(false)
         setCustomerName('')
         setCustomerId(null)
@@ -68,7 +66,7 @@ export function StoreProvider({ children, initialSlug }: StoreProviderProps) {
       const { data: customer } = await supabase
         .from('customers')
         .select('id, store_id, full_name, username')
-        .eq('user_id', user.id)
+        .eq('user_id', session.user.id)
         .eq('store_id', importer.id)
         .single()
 
