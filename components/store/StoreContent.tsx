@@ -133,7 +133,7 @@ function ProductCard({ product, slug }: { product: Product; slug: string }) {
         )}
                 <div className="flex flex-col gap-1 items-start">
                   <span className="text-2xl font-bold text-blue-600">GH₵{product.price}</span>
-                  <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">No shipping fee</span>
+                  <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">Without shipping fee</span>
                 </div>
                 <button
                   onClick={handleAddToCart}
