@@ -3,6 +3,9 @@ import { getCustomerForStore } from '@/lib/auth/store-session'
 import StoreContent from '@/components/store/StoreContent'
 import { StorefrontWrapper } from '@/components/store/StorefrontWrapper'
 
+// Force dynamic rendering to ensure session is always checked
+export const dynamic = 'force-dynamic'
+
 interface Product {
   id: string
   name: string

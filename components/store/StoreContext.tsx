@@ -128,7 +128,7 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
     customerName,
     isLoggedIn,
     loading,
-    refetchCustomer: () => fetchCustomer(slug!)
+    refetchCustomer: () => fetchCustomer(slug || '')
   }
 
   return (

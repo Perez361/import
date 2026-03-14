@@ -2,6 +2,9 @@ import CartContent from './CartContent'
 import { StorefrontWrapper } from '@/components/store/StorefrontWrapper'
 import { getCustomerForStore } from '@/lib/auth/store-session'
 
+// Force dynamic rendering to ensure session is always checked
+export const dynamic = 'force-dynamic'
+
 export default async function CartPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const initialCustomer = await getCustomerForStore(slug)

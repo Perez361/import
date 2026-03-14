@@ -3,6 +3,9 @@ import ProfileContent from './ProfileContent'
 import { StorefrontWrapper } from '@/components/store/StorefrontWrapper'
 import { getCustomerForStore } from '@/lib/auth/store-session'
 
+// Force dynamic rendering to ensure session is always checked
+export const dynamic = 'force-dynamic'
+
 export default async function ProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   
