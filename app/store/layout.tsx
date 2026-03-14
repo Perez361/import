@@ -1,5 +1,4 @@
 import { ReactNode } from 'react'
-import { Toaster } from 'sonner'
 
 export default function StoreLayout({
   children,
@@ -11,7 +10,6 @@ export default function StoreLayout({
   return (
     <div>
       {children}
-      <Toaster position="top-right" richColors />
     </div>
   )
 }
