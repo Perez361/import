@@ -1,7 +1,6 @@
 import { getImporterBySlug, getProductsBySlug } from '@/lib/store'
-import { CartProvider } from '@/components/store/CartContext'
-import { StoreProvider } from '@/components/store/StoreContext'
 import StoreContent from '@/components/store/StoreContent'
+import { StorefrontWrapper } from '@/components/store/StorefrontWrapper'
 
 interface Product {
   id: string
@@ -22,18 +21,16 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   const products = await getProductsBySlug(slug) as Product[]
 
   return (
-    <StoreProvider initialSlug={slug}>
-      <CartProvider slug={slug}>
-        <StoreContent 
-          slug={slug} 
-          importer={{
-            business_name: importer.business_name,
-            phone: importer.phone,
-            location: importer.location
-          }} 
-          products={products} 
-        />
-      </CartProvider>
-    </StoreProvider>
+    <StorefrontWrapper slug={slug}>
+      <StoreContent 
+        slug={slug} 
+        importer={{
+          business_name: importer.business_name,
+          phone: importer.phone,
+          location: importer.location
+        }} 
+        products={products} 
+      />
+    </StorefrontWrapper>
   )
 }
