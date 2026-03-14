@@ -93,6 +93,7 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
   }, [])
 
   useEffect(() => {
+    // Only fetch customer if we don't have initial data and have a slug
     if (initialCustomer) {
       setLoading(false)
     } else if (slug) {
@@ -100,11 +101,20 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
     }
   }, [slug, fetchCustomer, initialCustomer])
 
+  // Listen for auth changes but don't auto-clear - let fetchCustomer handle it
   useEffect(() => {
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (slug) {
+      // Only refetch customer if we have a session or previously had a session
+      // This prevents clearing state on initial load before session is checked
+      if (session?.user && slug) {
         await fetchCustomer(slug)
+      } else if (event === 'SIGNED_OUT') {
+        // Only clear on explicit sign out
+        setIsLoggedIn(false)
+        setCustomerName('')
+        setCustomerId(null)
+        setStoreId(null)
       }
     })
 
