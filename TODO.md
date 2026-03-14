@@ -13,10 +13,16 @@ Status: In Progress
 
 Server-side customer hydration prevents logout on refresh.
 
-**To test:**
-cd importation && npm run dev
-- Login/register as customer
-- Refresh storefront
-- Profile/cart persist
+**Cart/Profile loading fixed** ✅
+- CartContext: Explicit deps + empty cart early return
+- ProfileDrawer: setLoading(true) on fetch trigger
 
-Run dev server to verify.
+**Full test**:
+```
+cd importation
+npm run dev
+```
+1. Login customer
+2. Refresh → instant load
+3. Add to cart → immediate
+4. Profile → instant orders/profile

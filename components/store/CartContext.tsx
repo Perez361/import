@@ -43,6 +43,8 @@ export function CartProvider({
 
   const loadCart = useCallback(async () => {
     if (!store.customerId || !store.storeId) {
+      setCartItems([])
+      setCartCount(0)
       setLoading(false)
       return
     }
@@ -93,7 +95,7 @@ export function CartProvider({
 
   useEffect(() => {
     loadCart()
-  }, [loadCart])
+  }, [store.customerId, store.storeId, loadCart])
 
   const addToCart = async (productId: string) => {
     if (!store.customerId || !store.storeId) {

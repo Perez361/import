@@ -53,6 +53,7 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
     if (!store.customerId || store.loading) return
 
     const fetchData = async () => {
+      setLoading(true)
       const supabase = createClient()
 
       // Fetch profile
