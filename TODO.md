@@ -1,28 +1,10 @@
-# Storefront Session Persistence Fix
-Status: In Progress
+# Fix Store Session Check Failed (IDB Lock Abort)
 
 ## Steps:
-1. ✅ **Plan approved**
-2. ✅ Update `app/store/[slug]/page.tsx`: Server-side customer fetch + prop.
-3. ✅ Update `components/store/StorefrontWrapper.tsx`: Pass initialCustomer.
-4. ✅ Update `components/store/StoreContext.tsx`: Use initialCustomer prop.
-5. ✅ Create `lib/auth/store-session.ts`: Helper getCustomerForStore().
-6. ✅ Test complete - Fixed!
+- [x] 1. Add retry logic and error suppression for IDB abort in StoreContext.tsx fetchCustomer
+- [x] 2. Implement debounce/flag to prevent concurrent calls
+- [ ] 3. Add BroadcastChannel for cross-tab coordination
+- [x] 4. Update supabase/client.ts auth config (autoRefreshToken: false)
+- [ ] 5. Test with importer dashboard + multiple store tabs/customer logins
+- [ ] 6. Verify no console errors/toasts, update this TODO
 
-# Storefront Session Fix Complete 🎉
-
-Server-side customer hydration prevents logout on refresh.
-
-**Cart/Profile loading fixed** ✅
-- CartContext: Explicit deps + empty cart early return
-- ProfileDrawer: setLoading(true) on fetch trigger
-
-**Full test**:
-```
-cd importation
-npm run dev
-```
-1. Login customer
-2. Refresh → instant load
-3. Add to cart → immediate
-4. Profile → instant orders/profile

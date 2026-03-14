@@ -7,7 +7,8 @@ export function createClient() {
     {
       auth: {
         persistSession: true,
-        detectSessionInUrl: false
+        detectSessionInUrl: false,
+        autoRefreshToken: false
       }
     }
   )

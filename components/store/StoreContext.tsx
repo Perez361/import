@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
@@ -39,8 +39,14 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
   const [customerName, setCustomerName] = useState(initialCustomer?.name ?? '')
   const [isLoggedIn, setIsLoggedIn] = useState(!!initialCustomer)
   const [loading, setLoading] = useState(true)  // Let dependents know when ready
+  const isFetchingRef = useRef(false)
 
   const fetchCustomer = useCallback(async (currentSlug: string) => {
+    if (isFetchingRef.current) {
+      console.log('StoreContext: Skipping concurrent customer fetch')
+      return
+    }
+    isFetchingRef.current = true
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
@@ -84,10 +90,17 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
         setCustomerId(null)
         setStoreId(null)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Fetch customer error:', error)
-      toast.error('Session check failed')
+      if (error.name === 'AbortError' || error.message?.includes('lock')) {
+        console.warn('Store session check aborted (IDB lock contention), retrying...')
+        // Self-retry after delay to avoid concurrent conflicts
+        setTimeout(() => fetchCustomer(currentSlug).catch(console.error), 1500)
+      } else {
+        toast.error('Session check failed')
+      }
     } finally {
+      isFetchingRef.current = false
       setLoading(false)
     }
   }, [])
