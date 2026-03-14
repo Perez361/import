@@ -79,7 +79,7 @@ export function CartProvider({
           }
         }))
         setCartItems(items)
-        setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
+        setCartCount(items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0))
       } else {
         setCartItems([])
         setCartCount(0)
