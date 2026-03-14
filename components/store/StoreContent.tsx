@@ -160,16 +160,29 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
       const { data: { session } } = await supabase.auth.getSession()
       setIsLoggedIn(!!session)
       
-      // Get customer name if logged in
+      // Get customer name if logged in - filter by store_slug via importers
       if (session?.user) {
-        const { data: customer } = await supabase
-          .from('customers')
-          .select('full_name, username')
-          .eq('user_id', session.user.id)
+        // First get the store by slug to find the UUID
+        const { data: importer } = await supabase
+          .from('importers')
+          .select('id')
+          .eq('store_slug', slug)
           .single()
         
-        if (customer) {
-          setCustomerName(customer.full_name || customer.username || '')
+        if (importer) {
+          // Then query customer by user_id and store UUID
+          const { data: customer } = await supabase
+            .from('customers')
+            .select('full_name, username')
+            .eq('user_id', session.user.id)
+            .eq('store_id', importer.id)
+            .single()
+          
+          if (customer) {
+            setCustomerName(customer.full_name || customer.username || '')
+          } else {
+            setCustomerName('')
+          }
         }
       }
     }
@@ -180,14 +193,26 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setIsLoggedIn(!!session)
       if (session?.user) {
-        const { data: customer } = await supabase
-          .from('customers')
-          .select('full_name, username')
-          .eq('user_id', session.user.id)
+        // Get store by slug
+        const { data: importer } = await supabase
+          .from('importers')
+          .select('id')
+          .eq('store_slug', slug)
           .single()
         
-        if (customer) {
-          setCustomerName(customer.full_name || customer.username || 'Customer')
+        if (importer) {
+          const { data: customer } = await supabase
+            .from('customers')
+            .select('full_name, username')
+            .eq('user_id', session.user.id)
+            .eq('store_id', importer.id)
+            .single()
+          
+          if (customer) {
+            setCustomerName(customer.full_name || customer.username || '')
+          } else {
+            setCustomerName('')
+          }
         }
       } else {
         setCustomerName('')
