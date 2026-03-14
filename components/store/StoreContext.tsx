@@ -1,0 +1,133 @@
+'use client'
+
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
+
+interface CustomerProfile {
+  id: string
+  full_name: string | null
+  username: string | null
+  store_id: string
+  store_slug: string
+}
+
+interface StoreContextType {
+  slug: string | null
+  customerId: string | null
+  storeId: string | null
+  customerName: string
+  isLoggedIn: boolean
+  loading: boolean
+  refetchCustomer: () => Promise<void>
+}
+
+const StoreContext = createContext<StoreContextType | null>(null)
+
+interface StoreProviderProps {
+  children: ReactNode
+  initialSlug: string
+}
+
+export function StoreProvider({ children, initialSlug }: StoreProviderProps) {
+  const [slug, setSlug] = useState<string | null>(initialSlug)
+  const [customerId, setCustomerId] = useState<string | null>(null)
+  const [storeId, setStoreId] = useState<string | null>(null)
+  const [customerName, setCustomerName] = useState('')
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  const fetchCustomer = useCallback(async (currentSlug: string) => {
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session?.user || !currentSlug) {
+        setIsLoggedIn(false)
+        setCustomerName('')
+        setCustomerId(null)
+        setStoreId(null)
+        return
+      }
+
+      // Get importer by store_slug
+      const { data: importer } = await supabase
+        .from('importers')
+        .select('id, store_slug')
+        .eq('store_slug', currentSlug)
+        .single()
+
+      if (!importer) {
+        console.warn('Store not found for slug:', currentSlug)
+        return
+      }
+
+      // Get customer for this store
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('id, store_id, full_name, username')
+        .eq('user_id', session.user.id)
+        .eq('store_id', importer.id)
+        .single()
+
+      if (customer) {
+        setCustomerId(customer.id)
+        setStoreId(customer.store_id)
+        setCustomerName(customer.full_name || customer.username || '')
+        setIsLoggedIn(true)
+      } else {
+        setIsLoggedIn(false)
+        setCustomerName('')
+        setCustomerId(null)
+        setStoreId(null)
+      }
+    } catch (error) {
+      console.error('Fetch customer error:', error)
+      toast.error('Session check failed')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (slug) {
+      fetchCustomer(slug)
+    }
+  }, [slug, fetchCustomer])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (slug) {
+        await fetchCustomer(slug)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [slug, fetchCustomer])
+
+  const value: StoreContextType = {
+    slug,
+    customerId,
+    storeId,
+    customerName,
+    isLoggedIn,
+    loading,
+    refetchCustomer: () => fetchCustomer(slug!)
+  }
+
+  return (
+    <StoreContext.Provider value={value}>
+      {children}
+    </StoreContext.Provider>
+  )
+}
+
+export const useStore = () => {
+  const context = useContext(StoreContext)
+  if (!context) {
+    throw new Error('useStore must be used within StoreProvider')
+  }
+  return context
+}
+

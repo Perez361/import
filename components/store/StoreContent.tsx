@@ -1,18 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { Package, Phone, MapPin, ShoppingCart, User, LogOut, Plus, X, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { CartProvider, useCart } from '@/components/store/CartContext'
+import { useCart } from '@/components/store/CartContext'
+import { useStore } from '@/components/store/StoreContext'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { logoutAction } from '@/lib/actions'
 import ProfileDrawer from '@/components/store/ProfileDrawer'
 
-function handleLogout() {
-  logoutAction()
-}
+const handleLogout = useCallback(async () => {
+  try {
+    await logoutAction()
+    // Context will update via auth listener
+  } catch (error) {
+    toast.error('Logout failed')
+  }
+}, [])
 
 interface Product {
   id: string
@@ -149,78 +155,15 @@ function ProductCard({ product, slug }: { product: Product; slug: string }) {
 
 export default function StoreContent({ slug, importer, products }: StoreContentProps) {
   const { customerId } = useCart()
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [customerName, setCustomerName] = useState('')
+  const store = useStore()
   const [showCart, setShowCart] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   
-  useEffect(() => {
-    const checkAuth = async () => {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      setIsLoggedIn(!!session)
-      
-      // Get customer name if logged in - filter by store_slug via importers
-      if (session?.user) {
-        // First get the store by slug to find the UUID
-        const { data: importer } = await supabase
-          .from('importers')
-          .select('id')
-          .eq('store_slug', slug)
-          .single()
-        
-        if (importer) {
-          // Then query customer by user_id and store UUID
-          const { data: customer } = await supabase
-            .from('customers')
-            .select('full_name, username')
-            .eq('user_id', session.user.id)
-            .eq('store_id', importer.id)
-            .single()
-          
-          if (customer) {
-            setCustomerName(customer.full_name || customer.username || '')
-          } else {
-            setCustomerName('')
-          }
-        }
-      }
-    }
-    checkAuth()
-    
-    // Also listen for auth changes
-    const supabase = createClient()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setIsLoggedIn(!!session)
-      if (session?.user) {
-        // Get store by slug
-        const { data: importer } = await supabase
-          .from('importers')
-          .select('id')
-          .eq('store_slug', slug)
-          .single()
-        
-        if (importer) {
-          const { data: customer } = await supabase
-            .from('customers')
-            .select('full_name, username')
-            .eq('user_id', session.user.id)
-            .eq('store_id', importer.id)
-            .single()
-          
-          if (customer) {
-            setCustomerName(customer.full_name || customer.username || '')
-          } else {
-            setCustomerName('')
-          }
-        }
-      } else {
-        setCustomerName('')
-      }
-    })
-    
-    return () => subscription.unsubscribe()
-  }, [])
+  if (store.loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading store...</div>
+  }
+
+  const { isLoggedIn, customerName } = store
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -339,19 +282,20 @@ function CartBadge() {
 }
 
 function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
-  const { cartItems, cartCount, customerId, updateQuantity, removeFromCart } = useCart()
+  const store = useStore()
+  const { cartItems, cartCount, updateQuantity, removeFromCart } = useCart()
   const total = cartItems.reduce((sum, item) => sum + (item.quantity * item.products.price), 0)
   
   const handleCheckout = async () => {
-    if (!customerId) {
+    if (!store.customerId) {
       window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
       return
     }
     
     const supabase = createClient()
     const { error } = await supabase.from('orders').insert({
-      customer_id: customerId,
-      store_id: cartItems[0]?.products?.id ? 1 : 1, // Need to get store_id properly
+      customer_id: store.customerId,
+      store_id: store.storeId!,
       total_amount: total,
       status: 'pending'
     })

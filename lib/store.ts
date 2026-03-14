@@ -11,27 +11,40 @@ export async function getImporterBySlug(slug: string) {
   
   console.log('Looking for importer with slug:', slug)
   
-  // First try to match by store_slug (case-insensitive)
+// First try exact store_slug match
   const { data, error } = await supabase
     .from('importers')
     .select('*')
-    .ilike('store_slug', slug)
+    .eq('store_slug', slug)
     .single()
 
   console.log('store_slug lookup result:', { data, error })
   
   if (data) return data
   
-  // Fallback: try to match by username (case-insensitive)
-  const { data: fallbackData, error: fallbackError } = await supabase
+  // Fallback 1: case-insensitive store_slug
+  const { data: fallbackData } = await supabase
     .from('importers')
     .select('*')
-    .ilike('username', slug)
+    .ilike('store_slug', `%${slug}%`)
+    .limit(1)
     .single()
 
-  console.log('username fallback lookup result:', { fallbackData, fallbackError })
+  console.log('store_slug fallback result:', { fallbackData })
   
   if (fallbackData) return fallbackData
+
+  // Fallback 2: username
+  const { data: fallbackData2 } = await supabase
+    .from('importers')
+    .select('*')
+    .ilike('username', `%${slug}%`)
+    .limit(1)
+    .single()
+
+  console.log('username fallback result:', { fallbackData2 })
+  
+  if (fallbackData2) return fallbackData2
   
   return null
 }

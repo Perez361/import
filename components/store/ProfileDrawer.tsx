@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { User, Save, X, Package, Clock, Truck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useStore } from '@/components/store/StoreContext'
 import { toast } from 'sonner'
+
 
 interface CustomerProfile {
   full_name: string
@@ -45,16 +47,13 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
   })
   const [saving, setSaving] = useState(false)
 
+  const store = useStore()
+
   useEffect(() => {
+    if (!store.customerId || store.loading) return
+
     const fetchData = async () => {
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-
-      if (!session?.user) {
-        toast.error('Please log in')
-        onClose()
-        return
-      }
 
       // Fetch profile
       const { data: customer } = await supabase
@@ -63,7 +62,7 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
           *,
           importers!store_id(store_slug)
         `)
-        .eq('user_id', session.user.id)
+        .eq('id', store.customerId)
         .single()
 
       if (customer) {
@@ -87,7 +86,7 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
             products (*)
           )
         `)
-        .eq('customer_id', customer?.id)
+        .eq('customer_id', store.customerId)
         .order('created_at', { ascending: false })
 
       setOrders(orderData || [])
@@ -96,41 +95,40 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
     }
 
     fetchData()
-  }, [])
+  }, [store.customerId])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault()
+      setSaving(true)
 
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
+      const supabase = createClient()
 
-    const { error } = await supabase
-      .from('customers')
-      .update({
-        full_name: formData.full_name,
-        username: formData.username,
-        contact: formData.contact,
-        location: formData.location,
-        shipping_address: formData.shipping_address
-      })
-      .eq('user_id', session?.user.id)
-
-    if (error) {
-      toast.error('Update failed')
-    } else {
-      toast.success('Profile updated!')
-      // Refresh profile
-      const { data: updatedCustomer } = await supabase
+      const { error } = await supabase
         .from('customers')
-        .select('*')
-        .eq('user_id', session?.user.id)
-        .single()
-      setProfile(updatedCustomer)
-    }
+        .update({
+          full_name: formData.full_name,
+          username: formData.username,
+          contact: formData.contact,
+          location: formData.location,
+          shipping_address: formData.shipping_address
+        })
+        .eq('id', store.customerId!)
 
-    setSaving(false)
-  }
+      if (error) {
+        toast.error('Update failed')
+      } else {
+        toast.success('Profile updated!')
+        // Refresh profile
+        const { data: updatedCustomer } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('id', store.customerId!)
+          .single()
+        setProfile(updatedCustomer)
+      }
+
+      setSaving(false)
+    }
 
   if (loading) {
     return (

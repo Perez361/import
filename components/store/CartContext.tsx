@@ -1,7 +1,8 @@
 'use client'
 
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useStore } from '@/components/store/StoreContext'
 
 interface CartItem {
   id: string
@@ -37,83 +38,65 @@ export function CartProvider({
 }) {
   const [cartCount, setCartCount] = useState(0)
   const [cartItems, setCartItems] = useState<CartItem[]>([])
-  const [customerId, setCustomerId] = useState<string | null>(null)
-  const [storeId, setStoreId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const store = useStore()
 
-  useEffect(() => {
-    const initCart = async () => {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session?.user) {
-        const userId = session.user.id
-        
-        // First get the store by slug to find the UUID
-        const { data: importer } = await supabase
-          .from('importers')
-          .select('id')
-          .eq('store_slug', slug)
-          .single()
-        
-        if (importer) {
-          // Then query customer by user_id and store UUID
-          const { data: customer } = await supabase
-            .from('customers')
-            .select('id, store_id')
-            .eq('user_id', userId)
-            .eq('store_id', importer.id)
-            .single()
-          
-          if (customer) {
-            setCustomerId(customer.id)
-            setStoreId(customer.store_id)
-            
-            // Load cart
-            const { data: cartData } = await supabase
-              .from('carts')
-              .select(`
-                id,
-                cart_items (
-                  id,
-                  product_id,
-                  quantity,
-                  products (
-                    id,
-                    name,
-                    price,
-                    image_url
-                  )
-                )
-              `)
-              .eq('customer_id', customer.id)
-              .single()
-            
-            if (cartData?.cart_items) {
-              const items = cartData.cart_items.map((item: any): CartItem => ({
-                ...item,
-                products: item.products as {
-                  id: string
-                  name: string
-                  price: number
-                  image_url: string | null
-                }
-              }))
-              setCartItems(items)
-              setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
-            }
-          }
-        }
-      }
-      
+  const loadCart = useCallback(async () => {
+    if (!store.customerId || !store.storeId) {
       setLoading(false)
+      return
     }
 
-    initCart()
-  }, [slug])
+    try {
+      const supabase = createClient()
+      const { data: cartData } = await supabase
+        .from('carts')
+        .select(`
+          id,
+          cart_items (
+            id,
+            product_id,
+            quantity,
+            products (
+              id,
+              name,
+              price,
+              image_url
+            )
+          )
+        `)
+        .eq('customer_id', store.customerId)
+        .single()
+      
+      if (cartData?.cart_items) {
+        const items = cartData.cart_items.map((item: any): CartItem => ({
+          ...item,
+          products: item.products as {
+            id: string
+            name: string
+            price: number
+            image_url: string | null
+          }
+        }))
+        setCartItems(items)
+        setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
+      } else {
+        setCartItems([])
+        setCartCount(0)
+      }
+    } catch (error) {
+      console.error('Load cart error:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [store.customerId, store.storeId])
+
+  useEffect(() => {
+    loadCart()
+  }, [loadCart])
 
   const addToCart = async (productId: string) => {
-    if (!customerId || !storeId) {
+    if (!store.customerId || !store.storeId) {
       window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
       return
     }
@@ -124,14 +107,14 @@ export function CartProvider({
       const { data: cart } = await supabase
         .from('carts')
         .select('id')
-        .eq('customer_id', customerId)
-        .eq('store_id', storeId)
+        .eq('customer_id', store.customerId)
+        .eq('store_id', store.storeId)
         .single()
 
       if (!cart) {
         const { data: newCart } = await supabase
           .from('carts')
-          .insert({ customer_id: customerId, store_id: storeId })
+          .insert({ customer_id: store.customerId!, store_id: store.storeId! })
           .select('id')
           .single()
       }
@@ -139,7 +122,7 @@ export function CartProvider({
       await supabase
         .from('cart_items')
         .upsert({ 
-          cart_id: cart?.id || (await supabase.from('carts').select('id').eq('customer_id', customerId).single()).data?.id, 
+          cart_id: cart?.id || (await supabase.from('carts').select('id').eq('customer_id', store.customerId!).single()).data?.id, 
           product_id: productId, 
           quantity: 1 
         }, { onConflict: 'cart_id,product_id' })
@@ -161,7 +144,7 @@ export function CartProvider({
             )
           )
         `)
-        .eq('customer_id', customerId)
+        .eq('customer_id', store.customerId!)
         .single()
       
       if (updatedCart?.cart_items) {
@@ -183,7 +166,7 @@ export function CartProvider({
   }
 
   const updateQuantity = async (cartItemId: string, quantity: number) => {
-    if (!customerId || !storeId) return
+    if (!store.customerId || !store.storeId) return
     
     const supabase = createClient()
     try {
@@ -212,7 +195,7 @@ export function CartProvider({
             )
           )
         `)
-        .eq('customer_id', customerId)
+        .eq('customer_id', store.customerId!)
         .single()
       
       if (updatedCart?.cart_items) {
@@ -234,7 +217,7 @@ export function CartProvider({
   }
 
   const removeFromCart = async (cartItemId: string) => {
-    if (!customerId || !storeId) return
+    if (!store.customerId || !store.storeId) return
     
     const supabase = createClient()
     try {
@@ -257,7 +240,7 @@ export function CartProvider({
             )
           )
         `)
-        .eq('customer_id', customerId)
+        .eq('customer_id', store.customerId!)
         .single()
       
       if (updatedCart?.cart_items) {
@@ -284,8 +267,8 @@ export function CartProvider({
     addToCart,
     updateQuantity,
     removeFromCart,
-    customerId,
-    storeId,
+    customerId: store.customerId || null,
+    storeId: store.storeId || null,
     loading
   }
 
