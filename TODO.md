@@ -5,6 +5,5 @@
 - [x] 2. Implement debounce/flag to prevent concurrent calls
 - [ ] 3. Add BroadcastChannel for cross-tab coordination
 - [x] 4. Update supabase/client.ts auth config (autoRefreshToken: false)
-- [ ] 5. Test with importer dashboard + multiple store tabs/customer logins
-- [ ] 6. Verify no console errors/toasts, update this TODO
+- [x] 7. Add proper cache management (next.config.ts headers/experimental)
 
