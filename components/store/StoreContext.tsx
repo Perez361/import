@@ -93,33 +93,50 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
   }, [])
 
   useEffect(() => {
-    // Only fetch customer if we don't have initial data and have a slug
+    // If we have initialCustomer from server, set state immediately and don't fetch
     if (initialCustomer) {
+      setCustomerId(initialCustomer.id)
+      setStoreId(initialCustomer.storeId)
+      setCustomerName(initialCustomer.name)
+      setIsLoggedIn(true)
       setLoading(false)
     } else if (slug) {
+      // Only fetch if we don't have initialCustomer
       fetchCustomer(slug)
     }
   }, [slug, fetchCustomer, initialCustomer])
 
-  // Listen for auth changes but don't auto-clear - let fetchCustomer handle it
+  // Listen for auth changes but preserve initial customer state
   useEffect(() => {
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Only refetch customer if we have a session or previously had a session
-      // This prevents clearing state on initial load before session is checked
-      if (session?.user && slug) {
-        await fetchCustomer(slug)
-      } else if (event === 'SIGNED_OUT') {
-        // Only clear on explicit sign out
+      // On initial load, if we have initialCustomer from server, don't clear it
+      if (event === 'INITIAL_SESSION') {
+        // If we have a session and initialCustomer wasn't provided, fetch it
+        if (session?.user && !initialCustomer && slug) {
+          await fetchCustomer(slug)
+        }
+        // If we have initialCustomer, keep it regardless of session state
+        return
+      }
+      
+      // On signed out, clear state
+      if (event === 'SIGNED_OUT') {
         setIsLoggedIn(false)
         setCustomerName('')
         setCustomerId(null)
         setStoreId(null)
+        return
+      }
+      
+      // On session changed, refetch customer if we have a session
+      if (session?.user && slug) {
+        await fetchCustomer(slug)
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [slug, fetchCustomer])
+  }, [slug, fetchCustomer, initialCustomer])
 
   const value: StoreContextType = {
     slug,
