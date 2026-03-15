@@ -1,15 +1,4 @@
-import { createBrowserClient } from '@supabase/ssr'
-
-export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        persistSession: true,
-        detectSessionInUrl: true,
-        autoRefreshToken: true
-      }
-    }
-  )
-}
+// Re-exports the importer client for backwards compatibility.
+// All dashboard/importer code that does `import { createClient } from '@/lib/supabase/client'`
+// will now get the isolated importer session automatically.
+export { createImporterClient as createClient } from './importer-client'

@@ -4,10 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
 /**
- * Server-side login action.
- * Running sign-in on the server ensures Supabase sets the session cookies
- * via Set-Cookie response headers — not via document.cookie — so the proxy
- * and every subsequent server component can immediately read a valid session.
+ * Server-side login for importers.
+ * Signs in via the server so session cookies are set correctly.
  */
 export async function loginAction(credentials: { email: string; password: string }) {
   const supabase = await createClient()
@@ -20,15 +18,21 @@ export async function loginAction(credentials: { email: string; password: string
     return { error: error.message }
   }
 
-  // redirect() throws a special Next.js error caught by the framework —
-  // the browser will navigate and the fresh session cookies are included
-  // in the response automatically.
   redirect('/dashboard')
 }
 
+/**
+ * Server-side logout for importers.
+ * Only signs out the server-side importer session (cookie-based).
+ * Customer localStorage sessions are untouched.
+ */
 export async function logoutAction() {
   const supabase = await createClient()
   await supabase.auth.signOut()
-  
-  // Redirect back to the store page (will be handled by the form's action)
 }
+
+/**
+ * Customer logout is handled client-side only — calling signOut()
+ * on the customer client clears just the customer's localStorage key.
+ * See StoreContent.tsx handleLogout for usage.
+ */

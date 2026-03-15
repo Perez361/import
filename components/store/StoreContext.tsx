@@ -1,16 +1,9 @@
 'use client'
 
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { createCustomerClient } from '@/lib/supabase/customer-client'
 import { toast } from 'sonner'
-
-interface CustomerProfile {
-  id: string
-  full_name: string | null
-  username: string | null
-  store_id: string
-  store_slug: string
-}
 
 interface StoreContextType {
   slug: string | null
@@ -33,25 +26,22 @@ interface StoreProviderProps {
 }
 
 export function StoreProvider({ children, initialSlug, initialCustomer }: StoreProviderProps) {
-  const [slug, setSlug] = useState<string | null>(initialSlug)
+  const [slug] = useState<string | null>(initialSlug)
   const [customerId, setCustomerId] = useState<string | null>(initialCustomer?.id ?? null)
   const [storeId, setStoreId] = useState<string | null>(initialCustomer?.storeId ?? null)
   const [customerName, setCustomerName] = useState(initialCustomer?.name ?? '')
   const [isLoggedIn, setIsLoggedIn] = useState(!!initialCustomer)
-  const [loading, setLoading] = useState(true)  // Let dependents know when ready
+  const [loading, setLoading] = useState(!initialCustomer)
   const isFetchingRef = useRef(false)
 
   const fetchCustomer = useCallback(async (currentSlug: string) => {
-    if (isFetchingRef.current) {
-      console.log('StoreContext: Skipping concurrent customer fetch')
-      return
-    }
+    if (isFetchingRef.current) return
     isFetchingRef.current = true
     try {
-      const supabase = createClient()
-      // Use getUser() for secure server-validated session check
+      // Use the customer-specific client — completely isolated from importer sessions
+      const supabase = createCustomerClient(currentSlug)
       const { data: { user }, error: userError } = await supabase.auth.getUser()
-      
+
       if (userError || !user) {
         setIsLoggedIn(false)
         setCustomerName('')
@@ -60,19 +50,14 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
         return
       }
 
-      // Get importer by store_slug
       const { data: importer } = await supabase
         .from('importers')
         .select('id, store_slug')
         .eq('store_slug', currentSlug)
         .single()
 
-      if (!importer) {
-        console.warn('Store not found for slug:', currentSlug)
-        return
-      }
+      if (!importer) return
 
-      // Get customer for this store
       const { data: customer } = await supabase
         .from('customers')
         .select('id, store_id, full_name, username')
@@ -94,8 +79,6 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
     } catch (error: any) {
       console.error('Fetch customer error:', error)
       if (error.name === 'AbortError' || error.message?.includes('lock')) {
-        console.warn('Store session check aborted (IDB lock contention), retrying...')
-        // Self-retry after delay to avoid concurrent conflicts
         setTimeout(() => fetchCustomer(currentSlug).catch(console.error), 1500)
       } else {
         toast.error('Session check failed')
@@ -107,75 +90,48 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
   }, [])
 
   useEffect(() => {
-    // If we have initialCustomer from server, set state immediately and don't fetch
     if (initialCustomer) {
-      setCustomerId(initialCustomer.id)
-      setStoreId(initialCustomer.storeId)
-      setCustomerName(initialCustomer.name)
-      setIsLoggedIn(true)
       setLoading(false)
-    } else if (slug) {
-      // Only fetch if we don't have initialCustomer
-      fetchCustomer(slug)
+      return
     }
+    if (slug) fetchCustomer(slug)
   }, [slug, fetchCustomer, initialCustomer])
 
-  // Listen for auth changes - sync with server-side initialCustomer
   useEffect(() => {
-    const supabase = createClient()
-    
-    // Function to handle session changes
-    const handleAuthChange = async (event: string, session: any) => {
-      switch (event) {
-        case 'INITIAL_SESSION':
-          // On initial load, always validate and fetch customer data
-          // This ensures session is properly synced after page refresh
-          if (session?.user && slug) {
-            await fetchCustomer(slug)
-          }
-          break
-          
-        case 'SIGNED_IN':
-          // New sign in - fetch customer data
-          if (session?.user && slug) {
-            await fetchCustomer(slug)
-          }
-          break
-        
-        case 'SIGNED_OUT':
-          // Clear all state on sign out
+    if (!slug) return
+    // Subscribe using the customer-specific client so we only react to
+    // customer auth events — never to the importer signing in/out
+    const supabase = createCustomerClient(slug)
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, session: Session | null) => {
+        if (event === 'SIGNED_OUT') {
           setIsLoggedIn(false)
           setCustomerName('')
           setCustomerId(null)
           setStoreId(null)
-          break
-          
-        case 'TOKEN_REFRESHED':
-          // Token refreshed - if we have a user, ensure customer data is current
-          if (session?.user && slug) {
-            await fetchCustomer(slug)
-          }
-          break
+        } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+          await fetchCustomer(slug)
+        } else if (event === 'INITIAL_SESSION') {
+          if (session?.user) await fetchCustomer(slug)
+          else setLoading(false)
+        }
       }
-    }
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange)
+    )
 
     return () => subscription.unsubscribe()
   }, [slug, fetchCustomer])
 
-  const value: StoreContextType = {
-    slug,
-    customerId,
-    storeId,
-    customerName,
-    isLoggedIn,
-    loading,
-    refetchCustomer: () => fetchCustomer(slug || '')
-  }
-
   return (
-    <StoreContext.Provider value={value}>
+    <StoreContext.Provider value={{
+      slug,
+      customerId,
+      storeId,
+      customerName,
+      isLoggedIn,
+      loading,
+      refetchCustomer: () => fetchCustomer(slug || '')
+    }}>
       {children}
     </StoreContext.Provider>
   )
@@ -183,9 +139,6 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
 
 export const useStore = () => {
   const context = useContext(StoreContext)
-  if (!context) {
-    throw new Error('useStore must be used within StoreProvider')
-  }
+  if (!context) throw new Error('useStore must be used within StoreProvider')
   return context
 }
-

@@ -81,7 +81,7 @@ export function CartProvider({
           }
         }))
         setCartItems(items)
-        setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
+        setCartCount(items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0))
       } else {
         setCartItems([])
         setCartCount(0)
@@ -160,7 +160,7 @@ export function CartProvider({
           }
         }))
         setCartItems(items)
-        setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
+       setCartCount(items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0))
       }
     } catch (error) {
       console.error('Add to cart error:', error)
@@ -211,7 +211,7 @@ export function CartProvider({
           }
         }))
         setCartItems(items)
-        setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
+        setCartCount(items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0))
       }
     } catch (error) {
       console.error('Update quantity error:', error)
@@ -256,7 +256,7 @@ export function CartProvider({
           }
         }))
         setCartItems(items)
-        setCartCount(items.reduce((sum: number, item) => sum + item.quantity, 0))
+       setCartCount(items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0))
       }
     } catch (error) {
       console.error('Remove from cart error:', error)

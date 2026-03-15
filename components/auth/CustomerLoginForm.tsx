@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import FormInput from './FormInput'
-import { createClient } from '@/lib/supabase/client'
+import { createCustomerClient } from '@/lib/supabase/customer-client'
 
 const loginSchema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -26,12 +26,11 @@ export default function CustomerLoginForm({ slug }: { slug: string }) {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-  })
+  } = useForm<LoginFormData>({ resolver: zodResolver(loginSchema) })
 
   const onSubmit = async (data: LoginFormData) => {
-    const supabase = createClient()
+    // Always use the customer client scoped to this slug
+    const supabase = createCustomerClient(slug)
     const { error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
@@ -91,4 +90,3 @@ export default function CustomerLoginForm({ slug }: { slug: string }) {
     </form>
   )
 }
-

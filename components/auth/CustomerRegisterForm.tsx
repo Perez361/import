@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import FormInput from './FormInput'
-import { createClient } from '@/lib/supabase/client'
+import { createCustomerClient } from '@/lib/supabase/customer-client'
 
 const registerSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -35,14 +35,12 @@ export default function CustomerRegisterForm({ slug }: { slug: string }) {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema),
-  })
+  } = useForm<RegisterFormData>({ resolver: zodResolver(registerSchema) })
 
   const onSubmit = async (data: RegisterFormData) => {
-    const supabase = createClient()
-    
-    // Create user with full customer metadata for trigger
+    // Always use the customer client scoped to this slug
+    const supabase = createCustomerClient(slug)
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
@@ -55,9 +53,9 @@ export default function CustomerRegisterForm({ slug }: { slug: string }) {
           contact: data.contact,
           location: data.location,
           shipping_address: data.shippingAddress,
-          email: data.email
-        }
-      }
+          email: data.email,
+        },
+      },
     })
 
     if (authError || !authData.user) {
@@ -65,67 +63,20 @@ export default function CustomerRegisterForm({ slug }: { slug: string }) {
       return
     }
 
-    // Create customer profile after confirmation trigger
     toast.success('Account created! Please check your email to confirm.')
-    
-    // Redirect to confirmed page or store
     router.push(`/account/confirmed?store=${slug}`)
   }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-      <FormInput
-        label="Full Name"
-        placeholder="John Doe"
-        error={errors.fullName?.message}
-        {...register('fullName')}
-      />
-      <FormInput
-        label="Username"
-        placeholder="johndoe123"
-        error={errors.username?.message}
-        {...register('username')}
-      />
-      <FormInput
-        label="Contact"
-        type="tel"
-        placeholder="0541234567"
-        error={errors.contact?.message}
-        {...register('contact')}
-      />
-      <FormInput
-        label="Email"
-        type="email"
-        placeholder="john@example.com"
-        error={errors.email?.message}
-        {...register('email')}
-      />
-      <FormInput
-        label="Location"
-        placeholder="Accra, Ghana"
-        error={errors.location?.message}
-        {...register('location')}
-      />
-      <FormInput
-        label="Shipping Address"
-        placeholder="123 Street, Accra"
-        error={errors.shippingAddress?.message}
-        {...register('shippingAddress')}
-      />
-      <FormInput
-        label="Password"
-        type="password"
-        placeholder="At least 6 characters"
-        error={errors.password?.message}
-        {...register('password')}
-      />
-      <FormInput
-        label="Confirm Password"
-        type="password"
-        placeholder="Re-enter your password"
-        error={errors.confirmPassword?.message}
-        {...register('confirmPassword')}
-      />
+      <FormInput label="Full Name" placeholder="John Doe" error={errors.fullName?.message} {...register('fullName')} />
+      <FormInput label="Username" placeholder="johndoe123" error={errors.username?.message} {...register('username')} />
+      <FormInput label="Contact" type="tel" placeholder="0541234567" error={errors.contact?.message} {...register('contact')} />
+      <FormInput label="Email" type="email" placeholder="john@example.com" error={errors.email?.message} {...register('email')} />
+      <FormInput label="Location" placeholder="Accra, Ghana" error={errors.location?.message} {...register('location')} />
+      <FormInput label="Shipping Address" placeholder="123 Street, Accra" error={errors.shippingAddress?.message} {...register('shippingAddress')} />
+      <FormInput label="Password" type="password" placeholder="At least 6 characters" error={errors.password?.message} {...register('password')} />
+      <FormInput label="Confirm Password" type="password" placeholder="Re-enter your password" error={errors.confirmPassword?.message} {...register('confirmPassword')} />
 
       <button
         type="submit"
@@ -144,14 +95,10 @@ export default function CustomerRegisterForm({ slug }: { slug: string }) {
 
       <p className="text-center text-sm text-(--color-text-muted)">
         Already have an account?{' '}
-        <Link
-          href={`/store/${slug}/login?redirect=${encodeURIComponent(redirectTo)}`}
-          className="font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors"
-        >
+        <Link href={`/store/${slug}/login?redirect=${encodeURIComponent(redirectTo)}`} className="font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors">
           Sign in
         </Link>
       </p>
     </form>
   )
 }
-

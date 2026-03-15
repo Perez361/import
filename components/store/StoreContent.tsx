@@ -8,7 +8,7 @@ import { useCart } from '@/components/store/CartContext'
 import { useStore } from '@/components/store/StoreContext'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { logoutAction } from '@/lib/actions'
+import { createCustomerClient } from '@/lib/supabase/customer-client'
 import ProfileDrawer from '@/components/store/ProfileDrawer'
 
 interface Product {
@@ -87,13 +87,15 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
   const [showProfile, setShowProfile] = useState(false)
   
   const handleLogout = useCallback(async () => {
-    try {
-      await logoutAction()
-      // Context will update via auth listener
-    } catch (error) {
-      toast.error('Logout failed')
-    }
-  }, [])
+  try {
+    const supabase = createCustomerClient(slug)
+    await supabase.auth.signOut()
+    // StoreContext's onAuthStateChange listener will clear the state automatically
+  } catch (error) {
+    toast.error('Logout failed')
+  }
+}, [slug])
+
   
   if (store.loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading store...</div>
