@@ -30,7 +30,7 @@ export default function ProductsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
-       router.push('/login')  
+        router.push('/login')
         return
       }
 
@@ -51,14 +51,12 @@ export default function ProductsPage() {
     }
 
     fetchData()
-  }, [])
+  }, [router])
 
   const handleDelete = async (productId: string) => {
     const supabase = createClient()
     
-    // Show confirmation
     const confirmed = window.confirm('Are you sure you want to delete this product? This action cannot be undone.')
-    
     if (!confirmed) return
 
     setDeletingId(productId)
@@ -69,11 +67,8 @@ export default function ProductsPage() {
         .delete()
         .eq('id', productId)
 
-      if (error) {
-        throw error
-      }
+      if (error) throw error
       
-      // Update local state
       setProducts(products.filter(p => p.id !== productId))
       toast.success('Product deleted successfully')
     } catch (error: any) {
@@ -85,8 +80,7 @@ export default function ProductsPage() {
   }
 
   const handleEdit = (productId: string) => {
-    // Redirect to edit page
-    window.location.href = `/dashboard/products/${productId}/edit`
+    router.push(`/dashboard/products/${productId}/edit`)
   }
 
   if (loading) {
@@ -183,11 +177,7 @@ export default function ProductsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        Number(product.stock) > 10 ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' :
-                        Number(product.stock) > 0 ? 'bg-[var(--color-warning-light)] text-[var(--color-warning)]' :
-                        'bg-[var(--color-danger-light)] text-[var(--color-danger)]'
-                      }`}>
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[var(--color-brand-light)] text-[var(--color-brand)]">
                         {product.stock}
                       </span>
                     </td>
