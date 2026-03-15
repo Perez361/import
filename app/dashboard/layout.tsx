@@ -31,15 +31,37 @@ export default async function DashboardLayout({
     // If email confirmation is disabled in Supabase the callback never runs,
     // so we create the record here as a fallback on first dashboard visit.
     const supabase = await createClient()
-    await supabase.from('importers').insert({
+
+    // Derive a safe unique username/slug from the email address so that the
+    // INSERT never violates a UNIQUE constraint due to empty strings.
+    const emailPrefix = (user.email || '')
+      .split('@')[0]
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '_')
+      .slice(0, 30)
+    const fallbackUsername = user.user_metadata?.username || emailPrefix || user.id.slice(0, 8)
+    const fallbackSlug     = fallbackUsername
+
+    const { error: insertError } = await supabase.from('importers').insert({
       user_id: user.id,
       email: user.email,
-      business_name: user.user_metadata?.business_name ?? '',
-      full_name: user.user_metadata?.full_name ?? '',
-      username: user.user_metadata?.username ?? '',
-      phone: user.user_metadata?.phone ?? '',
-      location: user.user_metadata?.location ?? '',
+      business_name: user.user_metadata?.business_name || emailPrefix,
+      full_name: user.user_metadata?.full_name || '',
+      username: fallbackUsername,
+      phone: user.user_metadata?.phone || '',
+      location: user.user_metadata?.location || '',
+      store_slug: fallbackSlug,
     })
+
+    if (insertError) {
+      console.error('[dashboard/layout] Failed to create importer profile:', {
+        code: insertError.code,
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint,
+      })
+    }
+
     // Retry after creation
     importer = await getImporter(user.id)
   }
