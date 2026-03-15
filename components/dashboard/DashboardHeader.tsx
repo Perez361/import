@@ -1,8 +1,10 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Package, LogOut, LayoutDashboard } from 'lucide-react'
+import { toast } from 'sonner'
 import { logoutAction } from '@/lib/actions'
 
 interface DashboardHeaderProps {
@@ -18,6 +20,14 @@ export default function DashboardHeader({ businessName, email }: DashboardHeader
   window.location.href = '/login'
 }
 
+const hasToasted = useRef(false)
+
+useEffect(() => {
+  if (!hasToasted.current) {
+    hasToasted.current = true
+    toast.success(`Welcome back, ${businessName}! 👋`)
+  }
+}, [businessName])
   return (
     <header className="sticky top-0 z-40 border-b border-(--color-border) bg-(--color-card) shadow-sm">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6 sm:py-4">
