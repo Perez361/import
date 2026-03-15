@@ -1,14 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import FormInput from './FormInput'
-import { createClient } from '@/lib/supabase/client'
+import { loginAction } from '@/lib/actions'
 
 const loginSchema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -18,8 +17,6 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>
 
 export default function LoginForm() {
-  const router = useRouter()
-
   const {
     register,
     handleSubmit,
@@ -29,23 +26,12 @@ export default function LoginForm() {
   })
 
   const onSubmit = async (data: LoginFormData) => {
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
-    })
-
-    if (error) {
-      toast.error(error.message)
-      return
+    const result = await loginAction({ email: data.email, password: data.password })
+    // loginAction calls redirect('/dashboard') on success, so we only reach
+    // this point when an error is returned.
+    if (result?.error) {
+      toast.error(result.error)
     }
-
-    toast.success('Welcome back!')
-    // Hard navigate so the browser sends a fresh request with the new session
-    // cookies. router.push() uses client-side navigation which can replay a
-    // stale cached redirect (staleTimes), and router.refresh() races with
-    // the navigation. window.location.href is the safest option here.
-    window.location.href = '/dashboard'
   }
 
   return (
