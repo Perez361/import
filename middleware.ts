@@ -10,7 +10,7 @@ const protectedRoutes = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   
-  // Only check auth for protected routes - don't block other pages
+  // Only check auth for protected routes
   const isProtectedRoute = protectedRoutes.some(route => 
     pathname.startsWith(route)
   )
@@ -46,19 +46,19 @@ export async function middleware(request: NextRequest) {
       }
     )
 
-    // Try to refresh session if needed
-    const { data: { user } } = await supabase.auth.getUser()
+    // Get session - this will also refresh the session if needed
+    const { data: { session }, error } = await supabase.auth.getSession()
     
-    // If not authenticated, redirect to login
-    if (!user) {
+    // If no session or error, redirect to login
+    if (error || !session) {
       const loginUrl = new URL('/login', request.url)
       return NextResponse.redirect(loginUrl)
     }
     
   } catch (error) {
-    // If there's any error (network, etc), allow the request through
+    // If there's any error, allow the request through
     // The server components will handle auth checks
-    console.error('Middleware auth check failed:', error)
+    console.error('Middleware error:', error)
   }
 
   return response
