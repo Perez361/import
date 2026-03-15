@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Package, Image, Edit3, Trash2, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -17,6 +17,7 @@ interface Product {
 }
 
 export default function ProductsPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<Product[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -29,7 +30,7 @@ export default function ProductsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
-        redirect('/login')
+       router.push('/login')  
         return
       }
 
