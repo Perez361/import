@@ -28,6 +28,8 @@ export default function ProductsPage() {
       
       // Get authenticated user
       const { data: { user } } = await supabase.auth.getUser()
+
+      const router = useRouter()
       
       if (!user) {
         router.push('/login')
