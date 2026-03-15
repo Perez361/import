@@ -32,12 +32,7 @@ export default async function CustomerLoginPage({
     )
   }
 
-  // Check if user is logged in as importer - redirect to dashboard
-  const importerUser = await getImporterUser()
-  if (importerUser) {
-    redirect('/dashboard')
-  }
-
+ 
   // Check if user is logged in as a customer for a different store
   const customer = await getCustomerUser()
   if (customer && customer.store_slug !== slug) {
