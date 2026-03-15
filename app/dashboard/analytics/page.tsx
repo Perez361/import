@@ -2,18 +2,26 @@ import { redirect } from 'next/navigation'
 import { getAuthenticatedUser } from '@/lib/auth/session'
 import { getImporter } from '@/lib/importer'
 import { createClient } from '@/lib/supabase/server'
-import AnalyticsDashboard from './AnalyticsDashboard'
+import dynamic from 'next/dynamic'
 
 export const metadata = {
   title: 'Analytics – ImportFlow PRO',
 }
 
-export const dynamic = 'force-dynamic'
+// Prevent SSR of the chart-heavy client component
+const AnalyticsDashboard = dynamic(() => import('./AnalyticsDashboard'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <p className="text-sm text-[var(--color-text-muted)]">Loading analytics...</p>
+    </div>
+  ),
+})
 
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: { period?: string }
+  searchParams: Promise<{ period?: string }>
 }) {
   const user = await getAuthenticatedUser()
   if (!user) redirect('/login')
@@ -21,7 +29,8 @@ export default async function AnalyticsPage({
   const importer = await getImporter(user.id)
   if (!importer) redirect('/login')
 
-  const period = (searchParams.period as '7d' | '30d' | '90d' | '1y') || '30d'
+  const params = await searchParams
+  const period = (params.period as '7d' | '30d' | '90d' | '1y') || '30d'
   const days = { '7d': 7, '30d': 30, '90d': 90, '1y': 365 }[period] || 30
 
   const supabase = await createClient()
@@ -34,14 +43,7 @@ export default async function AnalyticsPage({
   prevSince.setDate(prevSince.getDate() - days * 2)
   const prevSinceISO = prevSince.toISOString()
 
-  // Get importer's storefront ID
-  const { data: storefront } = await supabase
-    .from('importers')
-    .select('id')
-    .eq('id', user.id)
-    .single()
-
-  const importerId = storefront?.id || user.id
+  const importerId = user.id
 
   const [
     { data: orders },
@@ -85,7 +87,6 @@ export default async function AnalyticsPage({
       .eq('importer_id', importerId),
   ])
 
-  // Fetch order items for current period orders
   const currentOrderIds = (orders || []).map((o) => o.id)
   const { data: orderItems } = currentOrderIds.length
     ? await supabase
