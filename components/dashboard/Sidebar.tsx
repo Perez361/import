@@ -13,7 +13,7 @@ import {
   Settings, 
   LogOut 
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { logoutAction } from '@/lib/actions'
 
 interface SidebarProps {
   businessName: string
@@ -23,10 +23,9 @@ export default function Sidebar({ businessName }: SidebarProps) {
   const pathname = usePathname()
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    window.location.href = '/login'
-  }
+  await logoutAction()
+  window.location.href = '/login'
+}
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },

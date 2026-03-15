@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Package, LogOut, LayoutDashboard } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { logoutAction } from '@/lib/actions'
 
 interface DashboardHeaderProps {
   businessName: string
@@ -14,11 +14,9 @@ export default function DashboardHeader({ businessName, email }: DashboardHeader
   const router = useRouter()
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
-  }
+  await logoutAction()
+  window.location.href = '/login'
+}
 
   return (
     <header className="sticky top-0 z-40 border-b border-(--color-border) bg-(--color-card) shadow-sm">

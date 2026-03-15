@@ -90,7 +90,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
   try {
     const supabase = createCustomerClient(slug)
     await supabase.auth.signOut()
-    // StoreContext's onAuthStateChange listener will clear the state automatically
+    window.location.href = `/store/${slug}`  // hard redirect, not router.push
   } catch (error) {
     toast.error('Logout failed')
   }
