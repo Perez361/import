@@ -13,7 +13,7 @@ export async function getImporterUser() {
   const { data: importer, error } = await supabase
     .from('importers')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('id', user.id)
     .single()
 
   if (error || !importer) return null
