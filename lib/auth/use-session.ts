@@ -1,5 +1,6 @@
 'use client'
 
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -76,7 +77,7 @@ export function useSession(): UseSessionReturn {
     // Set up auth state listener
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: AuthChangeEvent, session: Session | null) => {
         switch (event) {
           case 'INITIAL_SESSION':
             // Handle initial session
