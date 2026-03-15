@@ -49,9 +49,10 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
     isFetchingRef.current = true
     try {
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
+      // Use getUser() for secure server-validated session check
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
       
-      if (!session?.user || !currentSlug) {
+      if (userError || !user) {
         setIsLoggedIn(false)
         setCustomerName('')
         setCustomerId(null)
@@ -75,7 +76,7 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
       const { data: customer } = await supabase
         .from('customers')
         .select('id, store_id, full_name, username')
-        .eq('user_id', session.user.id)
+        .eq('user_id', user.id)
         .eq('store_id', importer.id)
         .single()
 
@@ -119,37 +120,56 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
     }
   }, [slug, fetchCustomer, initialCustomer])
 
-  // Listen for auth changes but preserve initial customer state
+  // Listen for auth changes - sync with server-side initialCustomer
   useEffect(() => {
     const supabase = createClient()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // On initial load, if we have initialCustomer from server, don't clear it
-      if (event === 'INITIAL_SESSION') {
-        // If we have a session and initialCustomer wasn't provided, fetch it
-        if (session?.user && !initialCustomer && slug) {
-          await fetchCustomer(slug)
-        }
-        // If we have initialCustomer, keep it regardless of session state
-        return
+    
+    // Function to handle session changes
+    const handleAuthChange = async (event: string, session: any) => {
+      switch (event) {
+        case 'INITIAL_SESSION':
+          // On initial load, check if we need to fetch customer
+          if (session?.user) {
+            // If server didn't provide initialCustomer, fetch it client-side
+            if (!initialCustomer && slug) {
+              await fetchCustomer(slug)
+            }
+            // If server provided initialCustomer but we have no customerId yet,
+            // we might need to re-validate (handles edge cases)
+            else if (initialCustomer && slug && !customerId) {
+              await fetchCustomer(slug)
+            }
+          }
+          break
+          
+        case 'SIGNED_IN':
+          // New sign in - fetch customer data
+          if (session?.user && slug) {
+            await fetchCustomer(slug)
+          }
+          break
+        
+        case 'SIGNED_OUT':
+          // Clear all state on sign out
+          setIsLoggedIn(false)
+          setCustomerName('')
+          setCustomerId(null)
+          setStoreId(null)
+          break
+          
+        case 'TOKEN_REFRESHED':
+          // Token refreshed - if we have a user, ensure customer data is current
+          if (session?.user && slug) {
+            await fetchCustomer(slug)
+          }
+          break
       }
-      
-      // On signed out, clear state
-      if (event === 'SIGNED_OUT') {
-        setIsLoggedIn(false)
-        setCustomerName('')
-        setCustomerId(null)
-        setStoreId(null)
-        return
-      }
-      
-      // On session changed, refetch customer if we have a session
-      if (session?.user && slug) {
-        await fetchCustomer(slug)
-      }
-    })
+    }
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange)
 
     return () => subscription.unsubscribe()
-  }, [slug, fetchCustomer, initialCustomer])
+  }, [slug, fetchCustomer, initialCustomer, customerId])
 
   const value: StoreContextType = {
     slug,
