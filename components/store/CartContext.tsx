@@ -167,101 +167,61 @@ export function CartProvider({
     }
   }
 
-  const updateQuantity = async (cartItemId: string, quantity: number) => {
-    if (!store.customerId || !store.storeId) return
-    
-    const supabase = createClient()
-    try {
-      if (quantity <= 0) {
-        // Remove the item
-        await supabase.from('cart_items').delete().eq('id', cartItemId)
-      } else {
-        // Update quantity
-        await supabase.from('cart_items').update({ quantity }).eq('id', cartItemId)
-      }
-      
-      // Refresh cart data
-      const { data: updatedCart } = await supabase
-        .from('carts')
-        .select(`
-          id,
-          cart_items (
-            id,
-            product_id,
-            quantity,
-            products (
-              id,
-              name,
-              price,
-              image_url
-            )
-          )
-        `)
-        .eq('customer_id', store.customerId!)
-        .single()
-      
-      if (updatedCart?.cart_items) {
-        const items = updatedCart.cart_items.map((item: any): CartItem => ({
-          ...item,
-          products: item.products as {
-            id: string
-            name: string
-            price: number
-            image_url: string | null
-          }
-        }))
-        setCartItems(items)
-        setCartCount(items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0))
-      }
-    } catch (error) {
-      console.error('Update quantity error:', error)
-    }
+ const updateQuantity = async (cartItemId: string, quantity: number) => {
+  if (!store.customerId || !store.storeId) return
+
+  // Optimistic update first
+  if (quantity <= 0) {
+    setCartItems(prev => {
+      const updated = prev.filter(item => item.id !== cartItemId)
+      setCartCount(updated.reduce((sum, item) => sum + item.quantity, 0))
+      return updated
+    })
+  } else {
+    setCartItems(prev => {
+      const updated = prev.map(item =>
+        item.id === cartItemId ? { ...item, quantity } : item
+      )
+      setCartCount(updated.reduce((sum, item) => sum + item.quantity, 0))
+      return updated
+    })
   }
 
-  const removeFromCart = async (cartItemId: string) => {
-    if (!store.customerId || !store.storeId) return
-    
-    const supabase = createClient()
-    try {
+  // Then sync to Supabase in background
+  const supabase = createClient()
+  try {
+    if (quantity <= 0) {
       await supabase.from('cart_items').delete().eq('id', cartItemId)
-      
-      // Refresh cart data
-      const { data: updatedCart } = await supabase
-        .from('carts')
-        .select(`
-          id,
-          cart_items (
-            id,
-            product_id,
-            quantity,
-            products (
-              id,
-              name,
-              price,
-              image_url
-            )
-          )
-        `)
-        .eq('customer_id', store.customerId!)
-        .single()
-      
-      if (updatedCart?.cart_items) {
-        const items = updatedCart.cart_items.map((item: any): CartItem => ({
-          ...item,
-          products: item.products as {
-            id: string
-            name: string
-            price: number
-            image_url: string | null
-          }
-        }))
-        setCartItems(items)
-       setCartCount(items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0))
-      }
-    } catch (error) {
-      console.error('Remove from cart error:', error)
+    } else {
+      await supabase.from('cart_items').update({ quantity }).eq('id', cartItemId)
     }
+  } catch (error) {
+    console.error('Update quantity sync error:', error)
+    // Reload cart to restore correct state if sync failed
+    loadCart()
   }
+}
+
+  const removeFromCart = async (cartItemId: string) => {
+  if (!store.customerId || !store.storeId) return
+
+  // Optimistic update first
+  setCartItems(prev => {
+    const updated = prev.filter(item => item.id !== cartItemId)
+    setCartCount(updated.reduce((sum, item) => sum + item.quantity, 0))
+    return updated
+  })
+
+  // Then sync to Supabase in background
+  const supabase = createClient()
+  try {
+    await supabase.from('cart_items').delete().eq('id', cartItemId)
+  } catch (error) {
+    console.error('Remove from cart sync error:', error)
+    // Reload cart to restore correct state if sync failed
+    loadCart()
+  }
+}
 
   const value = {
     cartCount,
