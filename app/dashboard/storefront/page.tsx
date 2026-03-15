@@ -57,7 +57,11 @@ export default function StorefrontPage() {
 
   const businessName = importer.business_name || 'My Store'
   const storeSlug = importer.store_slug || slugify(importer.username || 'my-store')
-  const storeUrl = `https://importation.vercel.app/store/${storeSlug}` // Update to your Vercel URL
+  
+  // Use the current host for the store URL (works for both local and production)
+  const storeUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}/store/${storeSlug}`
+    : `https://import-roan.vercel.app/store/${storeSlug}`
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(storeUrl)
