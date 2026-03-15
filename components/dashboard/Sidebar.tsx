@@ -11,7 +11,8 @@ import {
   Store, 
   TrendingUp, 
   Settings, 
-  LogOut 
+  LogOut,
+  BarChart2,
 } from 'lucide-react'
 import { logoutAction } from '@/lib/actions'
 
@@ -23,12 +24,13 @@ export default function Sidebar({ businessName }: SidebarProps) {
   const pathname = usePathname()
 
   const handleLogout = async () => {
-  await logoutAction()
-  window.location.href = '/login'
-}
+    await logoutAction()
+    window.location.href = '/login'
+  }
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
+    { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart2 },
     { href: '/dashboard/products', label: 'Products', icon: Package },
     { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart },
     { href: '/dashboard/customers', label: 'Customers', icon: Users },
@@ -51,7 +53,7 @@ export default function Sidebar({ businessName }: SidebarProps) {
       {/* Nav Links */}
       <nav className="p-2">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href
+          const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
           return (
             <Link
               key={href}
@@ -82,4 +84,3 @@ export default function Sidebar({ businessName }: SidebarProps) {
     </div>
   )
 }
-
