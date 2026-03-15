@@ -16,6 +16,8 @@ interface Product {
   created_at: string
 }
 
+const router = useRouter()
+
 export default function ProductsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -28,8 +30,6 @@ export default function ProductsPage() {
       
       // Get authenticated user
       const { data: { user } } = await supabase.auth.getUser()
-
-      const router = useRouter()
       
       if (!user) {
         router.push('/login')
