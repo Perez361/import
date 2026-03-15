@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { Package, Image, Edit3, Trash2, Loader2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Package, Upload, Image as ImageIcon, X, Loader2, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Product {
@@ -13,219 +12,259 @@ interface Product {
   price: number
   description: string
   image_url: string
-  created_at: string
+  slug: string
 }
 
-const router = useRouter()
-
-export default function ProductsPage() {
+export default function EditProductPage() {
   const router = useRouter()
+  const params = useParams()
+  const productId = params.id as string
+  
   const [loading, setLoading] = useState(true)
-  const [products, setProducts] = useState<Product[]>([])
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [product, setProduct] = useState<Product | null>(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    price: '',
+    description: ''
+  })
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchProduct = async () => {
       const supabase = createClient()
       
-      // Get authenticated user
+      // Get user
       const { data: { user } } = await supabase.auth.getUser()
-      
       if (!user) {
         router.push('/login')
         return
       }
 
-      // Fetch products
-      const { data: productsData, error } = await supabase
+      // Fetch product
+      const { data: productData, error } = await supabase
         .from('products')
         .select('*')
+        .eq('id', productId)
         .eq('importer_id', user.id)
-        .order('created_at', { ascending: false })
+        .single()
 
-      if (error) {
-        console.error('Error fetching products:', error)
-        toast.error('Failed to load products')
+      if (error || !productData) {
+        toast.error('Product not found')
+        router.push('/dashboard/products')
+        return
       }
 
-      setProducts(productsData || [])
+      setProduct(productData)
+      setFormData({
+        name: productData.name || '',
+        price: productData.price?.toString() || '',
+        description: productData.description || ''
+      })
+      setImagePreview(productData.image_url || null)
       setLoading(false)
     }
 
-    fetchData()
-  }, [router])
+    fetchProduct()
+  }, [productId])
 
-  const handleDelete = async (productId: string) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.name || !formData.price) return
+
+    setSaving(true)
     const supabase = createClient()
-    
-    const confirmed = window.confirm('Are you sure you want to delete this product? This action cannot be undone.')
-    if (!confirmed) return
 
-    setDeletingId(productId)
-    
     try {
-      const { error } = await supabase
+      // Get user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('Login required')
+        setSaving(false)
+        return
+      }
+
+      let imageUrl = product?.image_url || ''
+
+      // Upload new image if selected
+      if (imageFile) {
+        // Delete old image if exists
+        if (product?.image_url) {
+          const oldPath = product.image_url.split('/product-images/')[1]
+          if (oldPath) {
+            await supabase.storage.from('product-images').remove([oldPath])
+          }
+        }
+
+        const fileExt = imageFile.name.split('.').pop()
+        const fileName = `${crypto.randomUUID()}.${fileExt}`
+        const path = `${user.id}/${fileName}`
+        
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(path, imageFile)
+
+        if (uploadError) {
+          toast.error('Upload failed: ' + uploadError.message)
+          setSaving(false)
+          return
+        }
+
+        imageUrl = supabase.storage
+          .from('product-images')
+          .getPublicUrl(path).data.publicUrl
+      }
+
+      // Update product
+      const { error: updateError } = await supabase
         .from('products')
-        .delete()
+        .update({
+          name: formData.name,
+          price: parseFloat(formData.price),
+          description: formData.description || '',
+          image_url: imageUrl
+        })
         .eq('id', productId)
+        .eq('importer_id', user.id)
 
-      if (error) throw error
-      
-      setProducts(products.filter(p => p.id !== productId))
-      toast.success('Product deleted successfully')
+      if (updateError) {
+        toast.error('Failed to update product: ' + updateError.message)
+      } else {
+        toast.success('Product updated successfully!')
+        router.push('/dashboard/products')
+        router.refresh()
+      }
     } catch (error: any) {
-      console.error('Error deleting product:', error)
-      toast.error(error.message || 'Failed to delete product')
+      toast.error(error.message || 'An error occurred')
     } finally {
-      setDeletingId(null)
+      setSaving(false)
     }
-  }
-
-  const handleEdit = (productId: string) => {
-    router.push(`/dashboard/products/${productId}/edit`)
   }
 
   if (loading) {
     return (
-      <div className="p-8 max-w-7xl mx-auto flex items-center justify-center min-h-[400px]">
+      <div className="p-8 max-w-2xl mx-auto flex items-center justify-center min-h-[400px]">
         <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span>Loading products...</span>
+          <span>Loading product...</span>
         </div>
       </div>
     )
   }
 
-  const demoProducts = products.map((p) => ({
-    id: `#P${p.id.slice(-4)}`,
-    realId: p.id,
-    name: p.name,
-    price: p.price.toString(),
-    description: p.description || '',
-    image: !!p.image_url,
-    stock: 'Pre-order',
-    costPrice: '0',
-    sellingPrice: p.price.toString(),
-    status: 'Active'
-  }))
-
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">Products</h1>
-        <Link href="/dashboard/products/new" className="flex items-center gap-2 rounded-xl bg-[var(--color-success)] px-6 py-2.5 text-sm font-semibold text-white shadow-lg hover:bg-[var(--color-success)]/90 transition-all">
-          <Package className="h-4 w-4" />
-          + Add New Product
-        </Link>
+    <div className="p-8 max-w-2xl mx-auto">
+      <div className="flex items-center gap-3 mb-8">
+        <button 
+          onClick={() => router.back()} 
+          className="flex items-center gap-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Edit Product</h1>
       </div>
 
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-          <div className="flex items-center gap-4">
-            <div className="flex -space-x-2">
-              <div className="w-8 h-8 rounded-full bg-[var(--color-brand-light)] border-2 border-[var(--color-card)]" />
-              <div className="w-8 h-8 rounded-full bg-[var(--color-success-light)] border-2 border-[var(--color-card)]" />
-              <div className="w-8 h-8 rounded-full bg-[var(--color-warning-light)] border-2 border-[var(--color-card)]" />
+      <div className="bg-[var(--color-card)] rounded-2xl border border-[var(--color-border)] p-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
+              <ImageIcon className="h-4 w-4" />
+              Product Image
+            </label>
+            <div className="border-2 border-dashed border-[var(--color-border)] rounded-xl p-8 text-center hover:border-[var(--color-brand-light)] transition-colors cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}>
+              {imagePreview ? (
+                <div className="relative">
+                  <img src={imagePreview} alt="Preview" className="w-full h-48 object-cover rounded-lg" />
+                  <button type="button" className="absolute top-2 right-2 p-1 bg-[var(--color-danger)] text-white rounded-full"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setImagePreview(null)
+                      setImageFile(null)
+                    }}>
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Upload className="h-12 w-12 mx-auto mb-4 text-[var(--color-muted)]" />
+                  <p className="text-[var(--color-text-muted)] mb-1">Click to upload image</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">PNG, JPG</p>
+                </>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  setImageFile(file)
+                  setImagePreview(URL.createObjectURL(file))
+                }
+              }}
+              className="hidden"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-[var(--color-text-primary)]">Product Name</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent transition"
+                placeholder="e.g. Nike Air Max 90"
+                required
+              />
             </div>
             <div>
-              <p className="font-semibold text-[var(--color-text-primary)]">{products.length} products total</p>
-              <p className="text-sm text-[var(--color-text-muted)]">Pre-order available</p>
+              <label className="block text-sm font-semibold mb-2 text-[var(--color-text-primary)]">Price (GH₵)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.price}
+                onChange={(e) => setFormData({...formData, price: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent transition"
+                placeholder="650"
+                required
+              />
             </div>
           </div>
-        </div>
-        
-        {products.length === 0 ? (
-          <div className="p-12 text-center">
-            <Package className="h-16 w-16 text-[var(--color-text-muted)] mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">No products yet</h3>
-            <p className="text-[var(--color-text-muted)] mb-6">Get started by adding your first pre-order product</p>
-            <Link href="/dashboard/products/new" className="inline-flex items-center gap-2 rounded-xl bg-[var(--color-success)] px-6 py-2.5 text-sm font-semibold text-white shadow-lg hover:bg-[var(--color-success)]/90 transition-all">
-              <Package className="h-4 w-4" />
-              + Add New Product
-            </Link>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2 text-[var(--color-text-primary)]">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({...formData, description: e.target.value})}
+              rows={4}
+              className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent transition resize-vertical"
+              placeholder="Product details, sizes, pre-order info..."
+            />
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">
+              "Without shipping fee" tag is automatically added
+            </p>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[var(--color-border)]">
-                  <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">ID</th>
-                  <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Product</th>
-                  <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Stock</th>
-                  <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Cost</th>
-                  <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Selling</th>
-                  <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Profit</th>
-                  <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Status</th>
-                  <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-border)]">
-                {demoProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-[var(--color-surface)] transition-colors">
-                    <td className="px-6 py-4 font-mono text-sm text-[var(--color-text-muted)]">{product.id}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-muted)] overflow-hidden">
-                          {product.image ? (
-                            <Image className="h-6 w-6 text-[var(--color-text-muted)]" />
-                          ) : (
-                            <Package className="h-6 w-6 text-[var(--color-text-muted)]" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-[var(--color-text-primary)]">{product.name}</div>
-                          <div className="text-xs text-[var(--color-text-muted)]">SKU: PRD-{product.id.slice(2)}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[var(--color-brand-light)] text-[var(--color-brand)]">
-                        {product.stock}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-[var(--color-text-muted)]">GH₵{product.costPrice}</td>
-                    <td className="px-6 py-4 font-semibold text-[var(--color-text-primary)]">GH₵{product.sellingPrice}</td>
-                    <td className="px-6 py-4 font-semibold text-[var(--color-success)]">
-                      {(parseInt(product.sellingPrice) - parseInt(product.costPrice)).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-1 bg-[var(--color-success-light)] text-[var(--color-success)] text-xs rounded-full font-medium">
-                        Active
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-1">
-                        <button 
-                          onClick={() => handleEdit(product.realId)}
-                          className="p-1.5 text-[var(--color-brand)] hover:bg-[var(--color-brand-light)] rounded-lg transition-all"
-                          title="Edit product"
-                        >
-                          <Edit3 className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(product.realId)}
-                          disabled={deletingId === product.realId}
-                          className="p-1.5 text-[var(--color-danger)] hover:bg-[var(--color-danger-light)] rounded-lg transition-all disabled:opacity-50"
-                          title="Delete product"
-                        >
-                          {deletingId === product.realId ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        
-        <div className="p-6 text-center py-4 text-[var(--color-text-muted)] border-t border-[var(--color-border)] text-sm">
-          Showing {products.length} product{products.length !== 1 ? 's' : ''}
-        </div>
+
+          <button type="submit" disabled={saving} className="w-full bg-[var(--color-success)] hover:bg-[var(--color-success-dark)] text-white font-semibold py-3 rounded-xl transition-all shadow-lg disabled:opacity-50">
+            {saving ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </span>
+            ) : (
+              <>
+                <Package className="h-4 w-4 mr-2 inline" />
+                Save Changes
+              </>
+            )}
+          </button>
+        </form>
       </div>
     </div>
   )
