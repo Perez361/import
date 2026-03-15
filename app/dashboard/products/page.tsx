@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { getProductsByImporter, deleteProduct } from '@/lib/products'
 import { Package, Image, Edit3, Trash2, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -21,7 +20,6 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<Product[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [importerId, setImporterId] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,22 +33,18 @@ export default function ProductsPage() {
         return
       }
 
-      // Get importer
-      const { data: importer } = await supabase
-        .from('importers')
-        .select('id')
-        .eq('id', user.id)
-        .single()
+      // Fetch products
+      const { data: productsData, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('importer_id', user.id)
+        .order('created_at', { ascending: false })
 
-      if (!importer) {
-        redirect('/login')
-        return
+      if (error) {
+        console.error('Error fetching products:', error)
+        toast.error('Failed to load products')
       }
 
-      setImporterId(importer.id)
-
-      // Fetch products
-      const productsData = await getProductsByImporter(importer.id)
       setProducts(productsData || [])
       setLoading(false)
     }
@@ -59,8 +53,8 @@ export default function ProductsPage() {
   }, [])
 
   const handleDelete = async (productId: string) => {
-    if (!importerId) return
-
+    const supabase = createClient()
+    
     // Show confirmation
     const confirmed = window.confirm('Are you sure you want to delete this product? This action cannot be undone.')
     
@@ -69,7 +63,14 @@ export default function ProductsPage() {
     setDeletingId(productId)
     
     try {
-      await deleteProduct(productId, importerId)
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', productId)
+
+      if (error) {
+        throw error
+      }
       
       // Update local state
       setProducts(products.filter(p => p.id !== productId))

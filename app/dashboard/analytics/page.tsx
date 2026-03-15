@@ -8,9 +8,8 @@ export const metadata = {
   title: 'Analytics – ImportFlow PRO',
 }
 
-// Prevent SSR of the chart-heavy client component
+// Load the analytics dashboard component
 const AnalyticsDashboard = dynamic(() => import('./AnalyticsDashboard'), {
-  ssr: false,
   loading: () => (
     <div className="flex items-center justify-center min-h-[60vh]">
       <p className="text-sm text-[var(--color-text-muted)]">Loading analytics...</p>
