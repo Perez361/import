@@ -9,13 +9,26 @@ import { redirect } from 'next/navigation'
  */
 export async function loginAction(credentials: { email: string; password: string }) {
   const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email: credentials.email,
     password: credentials.password,
   })
 
   if (error) {
     return { error: error.message }
+  }
+
+  // Check if this user is actually a customer, not an importer
+  const { data: importerRecord } = await supabase
+    .from('importers')
+    .select('id')
+    .eq('id', data.user.id)
+    .maybeSingle()
+
+  if (!importerRecord) {
+    // Sign them back out — wrong login page
+    await supabase.auth.signOut()
+    return { error: 'This account is registered as a store customer, not an importer. Please log in through your store\'s login page.' }
   }
 
   redirect('/dashboard')

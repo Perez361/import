@@ -26,13 +26,16 @@ export default function LoginForm() {
   })
 
   const onSubmit = async (data: LoginFormData) => {
-    const result = await loginAction({ email: data.email, password: data.password })
-    // loginAction calls redirect('/dashboard') on success, so we only reach
-    // this point when an error is returned.
-    if (result?.error) {
+  const result = await loginAction({ email: data.email, password: data.password })
+  if (result?.error) {
+    // Check if the error hints at a customer trying to use the importer login
+    if (result.error.toLowerCase().includes('customer') || result.error === 'no_importer') {
+      toast.error('This account is a customer account. Please log in at your store instead.')
+    } else {
       toast.error(result.error)
     }
   }
+}
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">

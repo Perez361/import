@@ -29,22 +29,48 @@ export default function CustomerLoginForm({ slug }: { slug: string }) {
   } = useForm<LoginFormData>({ resolver: zodResolver(loginSchema) })
 
   const onSubmit = async (data: LoginFormData) => {
-    // Always use the customer client scoped to this slug
-    const supabase = createCustomerClient(slug)
-    const { error } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
-    })
+  const supabase = createCustomerClient(slug)
+  const { data: authData, error } = await supabase.auth.signInWithPassword({
+    email: data.email,
+    password: data.password,
+  })
 
-    if (error) {
-      toast.error(error.message)
-      return
-    }
-
-    toast.success('Welcome back!')
-    await router.push(redirectTo)
-    router.refresh()
+  if (error) {
+    toast.error(error.message)
+    return
   }
+
+  // Check if this user has a customer record for this store
+  const { data: importerCheck } = await supabase
+    .from('importers')
+    .select('id')
+    .eq('id', authData.user.id)
+    .maybeSingle()
+
+  if (importerCheck) {
+    // This is an importer account — sign them out and show message
+    await supabase.auth.signOut()
+    toast.error('This is an importer account. Please log in at importflow.app/login to access your dashboard.')
+    return
+  }
+
+  // Also check they actually have a customer record for THIS store
+  const { data: customerCheck } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('user_id', authData.user.id)
+    .maybeSingle()
+
+  if (!customerCheck) {
+    await supabase.auth.signOut()
+    toast.error('No customer account found for this store. Please create an account first.')
+    return
+  }
+
+  toast.success('Welcome back!')
+  await router.push(redirectTo)
+  router.refresh()
+}
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
