@@ -41,11 +41,11 @@ export default function LoginForm() {
     }
 
     toast.success('Welcome back!')
-    // Refresh first so Next.js server components re-read the new session
-    // cookies, then navigate. Reversing this order can cause the middleware
-    // to see no session and redirect back to /login.
-    router.refresh()
-    router.push('/dashboard')
+    // Hard navigate so the browser sends a fresh request with the new session
+    // cookies. router.push() uses client-side navigation which can replay a
+    // stale cached redirect (staleTimes), and router.refresh() races with
+    // the navigation. window.location.href is the safest option here.
+    window.location.href = '/dashboard'
   }
 
   return (

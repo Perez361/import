@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAuthenticatedUser } from '@/lib/auth/session'
 import { getImporter } from '@/lib/importer'
 import { getCustomerUser, getCustomerStoreSlug } from '@/lib/auth/user-type'
+import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/dashboard/Sidebar'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
 
@@ -23,7 +24,26 @@ export default async function DashboardLayout({
     redirect(`/store/${storeSlug}`)
   }
 
-  const importer = await getImporter(user.id)
+  let importer = await getImporter(user.id)
+
+  if (!importer) {
+    // Importer record is created in auth/callback (email-confirmation flow).
+    // If email confirmation is disabled in Supabase the callback never runs,
+    // so we create the record here as a fallback on first dashboard visit.
+    const supabase = await createClient()
+    await supabase.from('importers').insert({
+      user_id: user.id,
+      email: user.email,
+      business_name: user.user_metadata?.business_name ?? '',
+      full_name: user.user_metadata?.full_name ?? '',
+      username: user.user_metadata?.username ?? '',
+      phone: user.user_metadata?.phone ?? '',
+      location: user.user_metadata?.location ?? '',
+    })
+    // Retry after creation
+    importer = await getImporter(user.id)
+  }
+
   if (!importer) {
     redirect('/login')
   }
