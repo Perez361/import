@@ -128,17 +128,10 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
     const handleAuthChange = async (event: string, session: any) => {
       switch (event) {
         case 'INITIAL_SESSION':
-          // On initial load, check if we need to fetch customer
-          if (session?.user) {
-            // If server didn't provide initialCustomer, fetch it client-side
-            if (!initialCustomer && slug) {
-              await fetchCustomer(slug)
-            }
-            // If server provided initialCustomer but we have no customerId yet,
-            // we might need to re-validate (handles edge cases)
-            else if (initialCustomer && slug && !customerId) {
-              await fetchCustomer(slug)
-            }
+          // On initial load, always validate and fetch customer data
+          // This ensures session is properly synced after page refresh
+          if (session?.user && slug) {
+            await fetchCustomer(slug)
           }
           break
           
@@ -169,7 +162,7 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange)
 
     return () => subscription.unsubscribe()
-  }, [slug, fetchCustomer, initialCustomer, customerId])
+  }, [slug, fetchCustomer])
 
   const value: StoreContextType = {
     slug,
