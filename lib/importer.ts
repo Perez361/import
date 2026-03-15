@@ -20,7 +20,7 @@ export async function getImporter(userId: string) {
     const { error: updateError } = await supabase
       .from('importers')
       .update({ store_slug: slug })
-      .eq('id', userId)
+      .eq('id', data.id)
     if (!updateError) {
       data.store_slug = slug
     }
