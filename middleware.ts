@@ -21,11 +21,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // For protected routes, create response and check auth
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+  // Must use NextResponse.next({ request }) — not just headers — so Supabase
+  // can forward updated cookies (e.g. refreshed tokens) on the response.
+  let supabaseResponse = NextResponse.next({ request })
 
   try {
     const supabase = createServerClient(
@@ -36,32 +34,39 @@ export async function middleware(request: NextRequest) {
           getAll() {
             return request.cookies.getAll()
           },
+          // When Supabase refreshes a token it calls setAll.
+          // We must rebuild supabaseResponse here so the new cookies are
+          // included on both the mutated request and the outgoing response.
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
+            cookiesToSet.forEach(({ name, value }) =>
               request.cookies.set(name, value)
-              response.cookies.set(name, value, options)
-            })
+            )
+            supabaseResponse = NextResponse.next({ request })
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            )
           },
         },
       }
     )
 
-    // Get session - this will also refresh the session if needed
-    const { data: { session }, error } = await supabase.auth.getSession()
-    
-    // If no session or error, redirect to login
-    if (error || !session) {
+    // getUser() validates the JWT server-side — more reliable than getSession()
+    // for auth gating because it cannot return a stale/cached result.
+    const { data: { user }, error } = await supabase.auth.getUser()
+
+    // If no user or error, redirect to login
+    if (error || !user) {
       const loginUrl = new URL('/login', request.url)
       return NextResponse.redirect(loginUrl)
     }
-    
+
   } catch (error) {
     // If there's any error, allow the request through
     // The server components will handle auth checks
     console.error('Middleware error:', error)
   }
 
-  return response
+  return supabaseResponse
 }
 
 export const config = {

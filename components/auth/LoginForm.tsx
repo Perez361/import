@@ -41,8 +41,11 @@ export default function LoginForm() {
     }
 
     toast.success('Welcome back!')
-    await router.push('/dashboard')
+    // Refresh first so Next.js server components re-read the new session
+    // cookies, then navigate. Reversing this order can cause the middleware
+    // to see no session and redirect back to /login.
     router.refresh()
+    router.push('/dashboard')
   }
 
   return (
