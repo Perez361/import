@@ -43,18 +43,18 @@ export default async function FinancesPage({
   ] = await Promise.all([
     supabase
       .from('orders')
-      .select('id, total, status, created_at, customer_id')
+      .select('id, total, shipping_fee, status, created_at, customer_id')
       .eq('store_id', user.id)
       .gte('created_at', sinceISO),
     supabase
       .from('orders')
-      .select('id, total, status, created_at')
+      .select('id, total, shipping_fee, status, created_at')
       .eq('store_id', user.id)
       .gte('created_at', prevSinceISO)
       .lt('created_at', sinceISO),
     supabase
       .from('orders')
-      .select('id, total, status, created_at')
+      .select('id, total, shipping_fee, status, created_at')
       .eq('store_id', user.id),
     supabase
       .from('order_items')
@@ -83,21 +83,21 @@ export default async function FinancesPage({
   const fmt = (v: number) => v.toLocaleString('en-GH', { maximumFractionDigits: 0 })
 
   // KPIs
-  const revenue = (currentOrders || []).reduce((s, o) => s + n(o.total), 0)
-  const prevRevenue = (prevOrders || []).reduce((s, o) => s + n(o.total), 0)
+  const revenue = (currentOrders || []).reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
+  const prevRevenue = (prevOrders || []).reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
   const orderCount = currentOrders?.length || 0
   const prevOrderCount = prevOrders?.length || 0
-  const allRevenue = (allOrders || []).reduce((s, o) => s + n(o.total), 0)
+  const allRevenue = (allOrders || []).reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
   const aov = orderCount > 0 ? revenue / orderCount : 0
   const prevAov = prevOrderCount > 0 ? prevRevenue / prevOrderCount : 0
 
   const deliveredRevenue = (currentOrders || [])
     .filter((o) => o.status === 'delivered')
-    .reduce((s, o) => s + n(o.total), 0)
+    .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
 
   const cancelledRevenue = (currentOrders || [])
     .filter((o) => o.status === 'cancelled')
-    .reduce((s, o) => s + n(o.total), 0)
+    .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
 
   // Delta helper
   const delta = (cur: number, prev: number) => {
@@ -135,7 +135,7 @@ export default async function FinancesPage({
     const label = d.toLocaleDateString('en', { month: 'short' })
     const rev = (allOrders || [])
       .filter((o) => o.created_at?.slice(0, 7) === key)
-      .reduce((s, o) => s + n(o.total), 0)
+      .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
     monthlyData.push({ label, revenue: Math.round(rev) })
   }
   const maxMonthly = Math.max(...monthlyData.map((m) => m.revenue), 1)

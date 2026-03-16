@@ -40,7 +40,7 @@ export default async function DashboardPage() {
       .eq('store_id', user.id),
     supabase
       .from('orders')
-      .select('total, status')
+      .select('total, shipping_fee, status')
       .eq('store_id', user.id),
     supabase
       .from('orders')
@@ -63,7 +63,7 @@ export default async function DashboardPage() {
 
   // Total revenue
   const totalRevenue = orders?.reduce(
-    (sum, o) => sum + (parseFloat(String(o.total)) || 0),
+    (sum, o) => sum + (parseFloat(String(o.total)) || 0) + (parseFloat(String(o.shipping_fee)) || 0),
     0
   ) ?? 0
 
