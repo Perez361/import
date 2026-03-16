@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Package, Image, Edit3, Trash2, Loader2 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { deleteProductAction } from './actions'
 
 interface Product {
   id: string
@@ -25,25 +25,24 @@ export default function ProductsTable({ initialProducts }: ProductsTableProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const handleDelete = async (productId: string) => {
-    const confirmed = window.confirm('Are you sure you want to delete this product? This action cannot be undone.')
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this product? This action cannot be undone.'
+    )
     if (!confirmed) return
 
     setDeletingId(productId)
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', productId)
+      const result = await deleteProductAction(productId)
 
-      if (error) throw error
-
-      setProducts(products.filter((p) => p.id !== productId))
-      toast.success('Product deleted successfully')
-    } catch (error: any) {
-      console.error('Error deleting product:', error)
-      toast.error(error.message || 'Failed to delete product')
+      if (result?.error) {
+        toast.error(result.error)
+      } else {
+        setProducts((prev) => prev.filter((p) => p.id !== productId))
+        toast.success('Product deleted successfully')
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to delete product')
     } finally {
       setDeletingId(null)
     }
