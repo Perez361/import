@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { Package2, ClipboardList, Users, TrendingUp, Package, ShoppingCart, Truck } from 'lucide-react'
+import { Package2, ClipboardList, Users, TrendingUp, Package, ShoppingCart, Truck as TruckIcon } from 'lucide-react'
 import { getAuthenticatedUser } from '@/lib/auth/session'
 import { getImporter } from '@/lib/importer'
 import { createClient } from '@/lib/supabase/server'
@@ -67,6 +67,15 @@ export default async function DashboardPage() {
     0
   ) ?? 0
 
+  const productRevenue = orders?.reduce(
+    (sum, o) => sum + (parseFloat(String(o.total)) || 0),
+    0
+  ) ?? 0
+  const shippingRevenue = orders?.reduce(
+    (sum, o) => sum + (parseFloat(String(o.shipping_fee)) || 0),
+    0
+  ) ?? 0
+
   const fmt = (n: number) =>
     n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
 
@@ -92,8 +101,15 @@ export default async function DashboardPage() {
     {
       label: 'Revenue',
       value: `GH₵${fmt(totalRevenue)}`,
+      sub: `Products GH₵${fmt(productRevenue)} · Shipping GH₵${fmt(shippingRevenue)}`,
       icon: TrendingUp,
       note: 'all time',
+    },
+    {
+      label: 'Shipping Collected',
+      value: `GH₵${fmt(shippingRevenue)}`,
+      icon: TruckIcon,
+      note: 'Total shipping fees received',
     },
   ]
 

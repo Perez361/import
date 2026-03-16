@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart,
   Users, Package, ArrowUpRight, ArrowDownRight, Minus,
-  BarChart3, Calendar, Receipt
+  BarChart3, Calendar, Receipt, Truck
 } from 'lucide-react'
 
 export const metadata = {
@@ -91,6 +91,10 @@ export default async function FinancesPage({
   const aov = orderCount > 0 ? revenue / orderCount : 0
   const prevAov = prevOrderCount > 0 ? prevRevenue / prevOrderCount : 0
 
+  const productRevenue = (currentOrders || []).reduce((s, o) => s + n(o.total), 0)
+  const shippingRevenue = (currentOrders || []).reduce((s, o) => s + n(o.shipping_fee), 0)
+  const prevShippingRevenue = (prevOrders || []).reduce((s, o) => s + n(o.shipping_fee), 0)
+
   const deliveredRevenue = (currentOrders || [])
     .filter((o) => o.status === 'delivered')
     .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
@@ -127,16 +131,16 @@ export default async function FinancesPage({
   })
 
   // Monthly revenue for mini sparkline (last 6 months)
-  const monthlyData: { label: string; revenue: number }[] = []
+  const monthlyData: { label: string; revenue: number; products: number; shipping: number }[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date()
     d.setMonth(d.getMonth() - i)
     const key = d.toISOString().slice(0, 7)
     const label = d.toLocaleDateString('en', { month: 'short' })
-    const rev = (allOrders || [])
-      .filter((o) => o.created_at?.slice(0, 7) === key)
-      .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
-    monthlyData.push({ label, revenue: Math.round(rev) })
+    const monthOrders = (allOrders || []).filter((o) => o.created_at?.slice(0, 7) === key)
+    const monthProducts = monthOrders.reduce((s, o) => s + n(o.total), 0)
+    const monthShipping = monthOrders.reduce((s, o) => s + n(o.shipping_fee), 0)
+    monthlyData.push({ label, revenue: Math.round(monthProducts + monthShipping), products: Math.round(monthProducts), shipping: Math.round(monthShipping) })
   }
   const maxMonthly = Math.max(...monthlyData.map((m) => m.revenue), 1)
 
@@ -149,15 +153,24 @@ export default async function FinancesPage({
 
   const statCards = [
     {
-      label: 'Revenue',
+      label: 'Total Revenue',
       value: `GH₵${fmt(Math.round(revenue))}`,
-      sub: `All time: GH₵${fmt(Math.round(allRevenue))}`,
+      sub: `Products GH₵${fmt(Math.round(productRevenue))} · Shipping GH₵${fmt(Math.round(shippingRevenue))}`,
       delta: delta(revenue, prevRevenue),
       icon: DollarSign,
       color: 'text-[var(--color-success)]',
       bg: 'bg-[var(--color-success-light)]',
     },
     {
+      label: 'Shipping Collected',
+      value: `GH₵${fmt(Math.round(shippingRevenue))}`,
+      sub: `vs GH₵${fmt(Math.round(prevShippingRevenue))} prev period`,
+      delta: delta(shippingRevenue, prevShippingRevenue),
+      icon: Truck,
+      color: 'text-orange-500',
+      bg: 'bg-orange-50',
+    },
+        {
       label: 'Orders',
       value: String(orderCount),
       sub: `${statusMap['pending'] || 0} pending`,
@@ -274,18 +287,26 @@ export default async function FinancesPage({
           ) : (
             <div className="flex items-end gap-2 h-40">
               {monthlyData.map((m) => {
-                const heightPct = Math.round((m.revenue / maxMonthly) * 100)
+                const totalPct = Math.round((m.revenue / maxMonthly) * 100)
+                const shippingPct = m.revenue > 0 ? Math.round((m.shipping / m.revenue) * 100) : 0
                 return (
-                  <div key={m.label} className="flex-1 flex flex-col items-center gap-1.5">
+                  <div key={m.label} className="flex-1 flex flex-col items-center gap-1.5 group relative">
                     <span className="text-[10px] text-[var(--color-text-muted)] tabular-nums">
                       {m.revenue > 0 ? `${Math.round(m.revenue / 1000)}k` : ''}
                     </span>
-                    <div className="w-full flex items-end" style={{ height: '100px' }}>
-                      <div
-                        className="w-full rounded-t-lg bg-[var(--color-brand)] opacity-80 hover:opacity-100 transition-all"
-                        style={{ height: `${Math.max(heightPct, m.revenue > 0 ? 4 : 0)}%` }}
-                        title={`GH₵${fmt(m.revenue)}`}
-                      />
+                    {/* Tooltip */}
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col gap-0.5 bg-gray-900 text-white text-[10px] rounded-lg px-2.5 py-2 whitespace-nowrap z-10 shadow-xl pointer-events-none">
+                      <span className="font-semibold">{m.label}</span>
+                      <span>Products: GH₵{fmt(m.products)}</span>
+                      <span className="text-orange-300">Shipping: GH₵{fmt(m.shipping)}</span>
+                      <span className="border-t border-gray-700 pt-0.5 font-semibold">Total: GH₵{fmt(m.revenue)}</span>
+                    </div>
+                    <div className="w-full flex flex-col items-end justify-end overflow-hidden rounded-t-lg" style={{ height: '100px' }}>
+                      {/* Stacked bar: product (brand) + shipping (orange) on top */}
+                      <div className="w-full flex flex-col justify-end" style={{ height: `${Math.max(totalPct, m.revenue > 0 ? 4 : 0)}%` }}>
+                        <div className="w-full bg-orange-400 opacity-90" style={{ height: `${shippingPct}%`, minHeight: m.shipping > 0 ? '3px' : '0' }} />
+                        <div className="w-full bg-[var(--color-brand)] opacity-80 flex-1" />
+                      </div>
                     </div>
                     <span className="text-[10px] text-[var(--color-text-muted)]">{m.label}</span>
                   </div>
@@ -293,6 +314,17 @@ export default async function FinancesPage({
               })}
             </div>
           )}
+          {/* Chart legend */}
+          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--color-border)]">
+            <div className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-sm bg-[var(--color-brand)] opacity-80" />
+              <span className="text-xs text-[var(--color-text-muted)]">Products</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-sm bg-orange-400" />
+              <span className="text-xs text-[var(--color-text-muted)]">Shipping</span>
+            </div>
+          </div>
         </div>
 
         {/* Status breakdown */}
@@ -381,13 +413,31 @@ export default async function FinancesPage({
           <div className="flex flex-col gap-3">
             {[
               {
-                label: 'Gross Revenue',
+                label: 'Gross Revenue (Total)',
                 value: `GH₵${fmt(Math.round(revenue))}`,
                 note: 'all orders in period',
                 color: 'text-[var(--color-text-primary)]',
                 icon: TrendingUp,
                 iconColor: 'text-[var(--color-success)]',
                 iconBg: 'bg-[var(--color-success-light)]',
+              },
+              {
+                label: 'Product Revenue',
+                value: `GH₵${fmt(Math.round(productRevenue))}`,
+                note: 'product prices only',
+                color: 'text-[var(--color-brand)]',
+                icon: DollarSign,
+                iconColor: 'text-[var(--color-brand)]',
+                iconBg: 'bg-[var(--color-brand-light)]',
+              },
+              {
+                label: 'Shipping Collected',
+                value: `GH₵${fmt(Math.round(shippingRevenue))}`,
+                note: 'shipping fees billed',
+                color: 'text-orange-500',
+                icon: Truck,
+                iconColor: 'text-orange-500',
+                iconBg: 'bg-orange-50',
               },
               {
                 label: 'Delivered Revenue',
