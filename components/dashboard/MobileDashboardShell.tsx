@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -10,6 +10,8 @@ import {
 } from 'lucide-react'
 import { logoutAction } from '@/lib/actions'
 import { toast } from 'sonner'
+import { useInactivityTimeout } from '@/lib/hooks/useInactivityTimeout'
+import InactivityWarning from '@/components/InactivityWarning'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
@@ -33,6 +35,26 @@ interface Props {
 export default function MobileDashboardShell({ businessName, email, children }: Props) {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Auto-logout after 30 min inactivity, warn 2 min before
+  const TIMEOUT_MS = 15 * 60 * 1000   // 15 minutes
+  const WARNING_MS = 2 * 60 * 1000    // warn 2 min before
+
+  const handleTimeout = useCallback(async () => {
+    await logoutAction()
+    toast.error('You were signed out due to inactivity.')
+    window.location.href = '/login'
+  }, [])
+
+  const { showWarning, secondsLeft, resetTimer } = useInactivityTimeout({
+    timeoutMs: TIMEOUT_MS,
+    warningMs: WARNING_MS,
+    onTimeout: handleTimeout,
+  })
+
+  const handleStayLoggedIn = useCallback(() => {
+    resetTimer()
+  }, [resetTimer])
 
   // Close sidebar on route change
   useEffect(() => {
@@ -274,6 +296,15 @@ export default function MobileDashboardShell({ businessName, email, children }: 
 
       {/* Bottom padding for mobile nav */}
       <div className="lg:hidden h-16" />
+
+      {/* Inactivity warning */}
+      {showWarning && (
+        <InactivityWarning
+          secondsLeft={secondsLeft}
+          onStayLoggedIn={handleStayLoggedIn}
+          onLogout={handleTimeout}
+        />
+      )}
     </div>
   )
 }
