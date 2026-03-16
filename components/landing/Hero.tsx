@@ -18,7 +18,7 @@ const badges = [
 
 export default function Hero() {
   return (
-    <section className="relative min-h-screen bg-[#080C14] overflow-hidden flex flex-col items-center justify-center pt-28 pb-20 px-4">
+    <section className="relative min-h-screen bg-[#0D1117] overflow-hidden flex flex-col items-center justify-center pt-28 pb-20 px-4">
 
       {/* Background grid */}
       <div
@@ -33,6 +33,7 @@ export default function Hero() {
       <div className="pointer-events-none absolute top-1/4 left-1/4 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/10 blur-[120px]" />
       <div className="pointer-events-none absolute bottom-0 right-1/4 h-[400px] w-[400px] rounded-full bg-indigo-500/10 blur-[100px]" />
       <div className="pointer-events-none absolute top-1/2 right-0 h-[300px] w-[300px] rounded-full bg-cyan-500/8 blur-[80px]" />
+      <div className="pointer-events-none absolute bottom-1/4 left-0 h-[250px] w-[350px] rounded-full bg-indigo-600/8 blur-[90px]" />
 
       <div className="relative z-10 max-w-5xl mx-auto text-center">
 
@@ -90,7 +91,7 @@ export default function Hero() {
           {badges.map((b) => (
             <span
               key={b}
-              className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/5 px-3 py-1 text-xs text-white/50"
+              className="flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs text-white/60"
             >
               <CheckCircle className="h-3 w-3 text-blue-400 shrink-0" />
               {b}
@@ -101,23 +102,23 @@ export default function Hero() {
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto">
           {stats.map(({ value, label }) => (
-            <div key={label} className="rounded-2xl border border-white/8 bg-white/3 p-4 backdrop-blur-sm">
+            <div key={label} className="rounded-2xl border border-white/8 bg-white/6 p-4 backdrop-blur-sm">
               <p className="text-2xl sm:text-3xl font-extrabold text-white tabular-nums">{value}</p>
-              <p className="text-xs text-slate-500 mt-1 leading-snug">{label}</p>
+              <p className="text-xs text-slate-400 mt-1 leading-snug">{label}</p>
             </div>
           ))}
         </div>
 
         {/* Dashboard mockup hint */}
         <div className="mt-16 mx-auto max-w-3xl">
-          <div className="rounded-2xl border border-white/10 bg-white/3 backdrop-blur-sm p-3 shadow-[0_40px_80px_rgba(0,0,0,0.6)]">
+          <div className="rounded-2xl border border-white/12 bg-white/5 backdrop-blur-xl p-3 shadow-[0_40px_80px_rgba(0,0,0,0.7)] ring-1 ring-white/5">
             {/* Browser chrome */}
             <div className="rounded-xl bg-slate-900 overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
                 <div className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
                 <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
                 <div className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
-                <div className="flex-1 mx-4 rounded-md bg-white/5 px-3 py-1 text-xs text-white/30 text-center">importflow.app/dashboard</div>
+                <div className="flex-1 mx-4 rounded-md bg-white/5 px-3 py-1 text-xs text-white/45 text-center">importflow.app/dashboard</div>
               </div>
               {/* Fake dashboard UI */}
               <div className="p-4 sm:p-6 space-y-4">
@@ -129,15 +130,15 @@ export default function Hero() {
                     { label: 'Customers', val: '31', icon: Users, color: 'text-purple-400' },
                     { label: 'Revenue', val: 'GH₵9.4k', icon: TrendingUp, color: 'text-amber-400' },
                   ].map(({ label, val, icon: Icon, color }) => (
-                    <div key={label} className="rounded-xl bg-white/4 border border-white/6 p-3">
+                    <div key={label} className="rounded-xl bg-white/8 border border-white/12 p-3">
                       <Icon className={`h-4 w-4 ${color} mb-2`} />
                       <p className="text-sm font-bold text-white">{val}</p>
-                      <p className="text-[10px] text-white/40">{label}</p>
+                      <p className="text-[10px] text-white/55">{label}</p>
                     </div>
                   ))}
                 </div>
                 {/* Fake order rows */}
-                <div className="rounded-xl bg-white/3 border border-white/5 overflow-hidden">
+                <div className="rounded-xl bg-white/6 border border-white/10 overflow-hidden">
                   <div className="px-4 py-2.5 border-b border-white/5 flex items-center justify-between">
                     <span className="text-xs font-semibold text-white/60">Recent Orders</span>
                     <span className="text-[10px] text-blue-400">View all →</span>
@@ -147,8 +148,8 @@ export default function Hero() {
                     { id: 'B19D4A', name: 'Ama Owusu', status: 'Shipping billed', amount: 'GH₵430', color: 'text-orange-400 bg-orange-400/10' },
                     { id: 'C77E12', name: 'Kofi Mensah', status: 'Processing', amount: 'GH₵1,200', color: 'text-blue-400 bg-blue-400/10' },
                   ].map((row) => (
-                    <div key={row.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-white/4 last:border-0">
-                      <span className="font-mono text-[10px] text-white/30">#{row.id}</span>
+                    <div key={row.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-white/8 last:border-0">
+                      <span className="font-mono text-[10px] text-white/45">#{row.id}</span>
                       <span className="flex-1 text-xs text-white/60 text-left">{row.name}</span>
                       <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${row.color}`}>{row.status}</span>
                       <span className="text-xs font-semibold text-white tabular-nums">{row.amount}</span>

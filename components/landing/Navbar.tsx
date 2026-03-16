@@ -11,7 +11,7 @@ export default function Navbar() {
             <Package className="h-4 w-4 text-white" />
           </div>
           <span className="text-sm font-bold text-white tracking-tight">
-            Import<span className="text-blue-400">Flow</span> <span className="text-white/50 font-normal">PRO</span>
+            Import<span className="text-blue-400">Flow</span> <span className="text-white/60 font-normal">PRO</span>
           </span>
         </Link>
 

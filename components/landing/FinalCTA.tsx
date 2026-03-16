@@ -12,13 +12,13 @@ const perks = [
 
 export default function FinalCTA() {
   return (
-    <section className="bg-[#060A10] px-4 py-20 sm:py-28">
+    <section className="bg-[#0A0F18] px-4 py-20 sm:py-28">
       <div className="mx-auto max-w-4xl">
         <div className="relative rounded-3xl overflow-hidden border border-blue-500/20">
 
           {/* Gradient background */}
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-indigo-600/10 to-transparent" />
-          <div className="absolute inset-0 bg-[#080C14]/60" />
+          <div className="absolute inset-0 bg-[#0D1117]/50" />
 
           {/* Noise texture overlay */}
           <div

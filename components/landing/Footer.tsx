@@ -20,7 +20,7 @@ const links = {
 
 export default function Footer() {
   return (
-    <footer className="bg-[#040709] border-t border-white/5 px-4 pt-14 pb-8">
+    <footer className="bg-[#0A0F18] border-t border-white/8 px-4 pt-14 pb-8">
       <div className="mx-auto max-w-6xl">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-10 mb-14">
 
@@ -31,10 +31,10 @@ export default function Footer() {
                 <Package className="h-4 w-4 text-white" />
               </div>
               <span className="text-sm font-bold text-white">
-                Import<span className="text-blue-400">Flow</span> <span className="text-white/40 font-normal">PRO</span>
+                Import<span className="text-blue-400">Flow</span> <span className="text-white/55 font-normal">PRO</span>
               </span>
             </Link>
-            <p className="text-xs text-slate-600 leading-relaxed max-w-[180px]">
+            <p className="text-xs text-slate-400 leading-relaxed max-w-[180px]">
               The all-in-one business platform for Ghana's mini-importers.
             </p>
           </div>
@@ -42,11 +42,11 @@ export default function Footer() {
           {/* Link columns */}
           {Object.entries(links).map(([section, items]) => (
             <div key={section}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-white/30 mb-4">{section}</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-white/45 mb-4">{section}</p>
               <ul className="space-y-3">
                 {items.map(({ label, href }) => (
                   <li key={label}>
-                    <Link href={href} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
+                    <Link href={href} className="text-sm text-slate-400 hover:text-white transition-colors">
                       {label}
                     </Link>
                   </li>
@@ -57,11 +57,11 @@ export default function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/5 pt-8">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/8 pt-8">
           <p className="text-xs text-slate-600">
             © {new Date().getFullYear()} ImportFlow PRO. All rights reserved.
           </p>
-          <p className="text-xs text-slate-700">
+          <p className="text-xs text-slate-500">
             Made with ❤️ for Ghanaian importers
           </p>
         </div>
