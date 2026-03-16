@@ -2,14 +2,16 @@ import Navbar from '@/components/landing/Navbar'
 import Hero from '@/components/landing/Hero'
 import Features from '@/components/landing/Features'
 import FinalCTA from '@/components/landing/FinalCTA'
+import Footer from '@/components/landing/Footer'
 
 export default function LandingPage() {
   return (
-    <main>
+    <main className="bg-[#080C14]">
       <Navbar />
       <Hero />
       <Features />
       <FinalCTA />
+      <Footer />
     </main>
   )
 }
