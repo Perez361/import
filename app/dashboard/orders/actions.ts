@@ -93,3 +93,27 @@ export async function customerConfirmShippingPaymentAction(
   revalidatePath('/dashboard/orders')
   return { success: true }
 }
+
+// Importer: confirm customer has paid for product (first payment)
+export async function markProductPaidAction(orderId: string, reference?: string) {
+  const user = await getAuthenticatedUser()
+  if (!user) redirect('/login')
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      product_paid: true,
+      product_paid_at: new Date().toISOString(),
+      product_payment_reference: reference || null,
+      status: 'product_paid',
+    })
+    .eq('id', orderId)
+    .eq('store_id', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/orders')
+  return { success: true }
+}

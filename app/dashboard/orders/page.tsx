@@ -35,6 +35,8 @@ export default async function OrdersPage({
       created_at,
       shipping_fee,
       shipping_paid,
+      product_paid,
+      product_payment_reference,
       shipping_billed_at,
       shipping_paid_at,
       shipping_note,
@@ -66,6 +68,7 @@ export default async function OrdersPage({
   const filters = [
     { label: 'All', value: 'all' },
     { label: 'Pending', value: 'pending' },
+    { label: 'Product Paid', value: 'product_paid' },
     { label: 'Processing', value: 'processing' },
     { label: 'Arrived', value: 'arrived' },
     { label: 'Shipping Billed', value: 'shipping_billed' },
@@ -75,6 +78,7 @@ export default async function OrdersPage({
   ]
 
   const orderList = orders || []
+  const awaitingProductPayment = orderList.filter((o) => o.status === 'pending').length
   const awaitingBill = orderList.filter((o) => o.status === 'arrived').length
   const awaitingVerification = orderList.filter((o) => o.status === 'shipping_paid').length
 
@@ -88,6 +92,15 @@ export default async function OrdersPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {awaitingProductPayment > 0 && (
+            <Link
+              href="/dashboard/orders?status=pending"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 text-xs font-semibold"
+            >
+              <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+              {awaitingProductPayment} awaiting product payment
+            </Link>
+          )}
           {awaitingBill > 0 && (
             <Link
               href="/dashboard/orders?status=arrived"
