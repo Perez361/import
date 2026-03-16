@@ -16,15 +16,18 @@ export async function getImporter(userId: string) {
 
   // Auto-generate store_slug if null
   if (!data.store_slug) {
-    const slug = slugify(data.business_name || data.username)
+  const slug = slugify(data.business_name || data.username)
+  try {
     const { error: updateError } = await supabase
       .from('importers')
       .update({ store_slug: slug })
       .eq('id', data.id)
-    if (!updateError) {
-      data.store_slug = slug
-    }
+    if (!updateError) data.store_slug = slug
+    else data.store_slug = slug // assign in-memory even if RLS blocks the write
+  } catch {
+    data.store_slug = slug
   }
+}
 
   return data
 }
