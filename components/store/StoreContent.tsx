@@ -46,23 +46,23 @@ function ProductCard({ product, slug }: { product: Product; slug: string }) {
           </div>
         )}
       </div>
-      <div className="p-3 sm:p-4">
-        <h3 className="font-semibold text-sm sm:text-base text-gray-900 mb-1.5 line-clamp-2 leading-snug">{product.name}</h3>
+      <div className="p-3 sm:p-4 flex flex-col gap-2">
+        <h3 className="font-semibold text-sm sm:text-base text-gray-900 line-clamp-2 leading-snug min-h-[40px]">{product.name}</h3>
         {product.description && (
-          <p className="text-xs text-gray-500 mb-2 line-clamp-2 hidden sm:block">{product.description}</p>
+          <p className="text-xs text-gray-500 line-clamp-2 hidden sm:block">{product.description}</p>
         )}
-        <div className="flex items-end justify-between gap-2">
-          <div>
-            <p className="text-lg sm:text-xl font-bold text-blue-600">GH₵{product.price.toLocaleString()}</p>
-            <span className="text-[10px] sm:text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Without shipping fee</span>
-          </div>
+        <p className="text-lg sm:text-xl font-bold text-blue-600">GH₵{product.price.toLocaleString()}</p>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] sm:text-xs font-medium text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+            Without shipping fee
+          </span>
           <button
             onClick={handleAddToCart}
-            className="flex items-center gap-1 px-2.5 sm:px-3 py-2 bg-blue-600 text-white text-xs sm:text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-95 transition-all shrink-0"
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs sm:text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-95 transition-all shrink-0"
           >
-            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Add</span>
-            <span className="sm:hidden">+</span>
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Add to Cart</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>

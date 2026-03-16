@@ -46,7 +46,14 @@ export default function ProfileContent({ slug }: { slug: string }) {
   const [paymentLoading, setPaymentLoading] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    if (!store.customerId || store.loading) return
+    // Still loading auth — wait
+    if (store.loading) return
+
+    // Auth resolved but no customer logged in — stop loading and redirect
+    if (!store.customerId) {
+      setLoading(false)
+      return
+    }
 
     const fetchProfile = async () => {
       const supabase = createClient()
@@ -148,6 +155,18 @@ export default function ProfileContent({ slug }: { slug: string }) {
   }
 
   if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  // Not logged in
+  if (!store.customerId) {
+    if (typeof window !== 'undefined') {
+      window.location.href = `/store/${slug}/login?redirect=/store/${slug}/profile`
+    }
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
