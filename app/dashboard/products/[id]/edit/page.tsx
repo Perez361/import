@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { getAuthenticatedUser } from '@/lib/auth/session'
 import { createClient } from '@/lib/supabase/server'
-import EditProductClient from './Editproductclient'
+import EditProductForm from './EditProductForm'
 
 export default async function EditProductPage({
   params,
@@ -23,5 +23,5 @@ export default async function EditProductPage({
 
   if (error || !product) notFound()
 
-  return <EditProductClient product={product} userId={user.id} />
+  return <EditProductForm product={product} userId={user.id} />
 }

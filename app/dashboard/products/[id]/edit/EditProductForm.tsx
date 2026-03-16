@@ -20,7 +20,7 @@ interface Props {
   userId: string
 }
 
-export default function EditProductClient({ product, userId }: Props) {
+export default function EditProductForm({ product, userId }: Props) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(product.image_url || null)
