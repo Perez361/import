@@ -54,7 +54,7 @@ function ProductCard({ product, slug }: { product: Product; slug: string }) {
         <div className="flex items-end justify-between gap-2">
           <div>
             <p className="text-lg sm:text-xl font-bold text-blue-600">GH₵{product.price.toLocaleString()}</p>
-            <span className="text-[10px] sm:text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">No shipping</span>
+            <span className="text-[10px] sm:text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Without shipping fee</span>
           </div>
           <button
             onClick={handleAddToCart}
