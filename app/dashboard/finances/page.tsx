@@ -187,12 +187,12 @@ export default async function FinancesPage({
   ]
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Finances</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text-primary)]">Finances</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
             Track your revenue, orders and top products
           </p>
@@ -229,7 +229,7 @@ export default async function FinancesPage({
                 <Icon className={`h-4 w-4 ${color}`} />
               </div>
             </div>
-            <span className="text-2xl font-bold text-[var(--color-text-primary)] tabular-nums">
+            <span className="text-xl sm:text-2xl font-bold text-[var(--color-text-primary)] tabular-nums">
               {value}
             </span>
             <div className="flex items-center justify-between">

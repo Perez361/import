@@ -79,10 +79,10 @@ export default async function OrdersPage({
   const awaitingVerification = orderList.filter((o) => o.status === 'shipping_paid').length
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-5">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Orders</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text-primary)]">Orders</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
             Manage pre-orders and shipping billing
           </p>

@@ -9,7 +9,6 @@ import { useStore } from '@/components/store/StoreContext'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { createCustomerClient } from '@/lib/supabase/customer-client'
-import ProfileDrawer from '@/components/store/ProfileDrawer'
 
 interface Product {
   id: string
@@ -21,318 +20,261 @@ interface Product {
 
 interface StoreContentProps {
   slug: string
-  importer: {
-    business_name: string
-    phone: string
-    location: string
-  }
+  importer: { business_name: string; phone: string; location: string }
   products: Product[]
 }
 
 function ProductCard({ product, slug }: { product: Product; slug: string }) {
   const { addToCart, customerId } = useCart()
-  
+
   const handleAddToCart = async () => {
     if (!customerId) {
       window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
       return
     }
-    
-    try {
-      await addToCart(product.id)
-    } catch (error) {
-      console.error('Add to cart error:', error)
-    }
+    try { await addToCart(product.id) } catch (e) { console.error(e) }
   }
-  
+
   return (
-    <div className="group bg-white rounded-2xl border border-gray-200 hover:shadow-xl hover:border-gray-300 transition-all overflow-hidden">
-      <div className="relative h-64 bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center overflow-hidden">
+    <div className="group bg-white rounded-2xl border border-gray-200 hover:shadow-lg hover:border-gray-300 transition-all overflow-hidden">
+      <div className="relative h-44 sm:h-52 bg-gradient-to-br from-blue-50 to-purple-50 overflow-hidden">
         {product.image_url ? (
-          <Image
-            src={product.image_url}
-            alt={product.name}
-            fill
-            className="object-cover group-hover:scale-105 transition-transform"
-          />
+          <Image src={product.image_url} alt={product.name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
-          <Package className="h-20 w-20 text-gray-400" />
+          <div className="w-full h-full flex items-center justify-center">
+            <Package className="h-14 w-14 text-gray-300" />
+          </div>
         )}
       </div>
-      <div className="p-6">
-        <h3 className="font-semibold text-lg text-gray-900 mb-2 leading-tight line-clamp-2">{product.name}</h3>
+      <div className="p-3 sm:p-4">
+        <h3 className="font-semibold text-sm sm:text-base text-gray-900 mb-1.5 line-clamp-2 leading-snug">{product.name}</h3>
         {product.description && (
-          <p className="text-sm text-gray-600 mb-4 line-clamp-2">{product.description}</p>
+          <p className="text-xs text-gray-500 mb-2 line-clamp-2 hidden sm:block">{product.description}</p>
         )}
-                <div className="flex flex-col gap-1 items-start">
-                  <span className="text-2xl font-bold text-blue-600">GH₵{product.price}</span>
-                  <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">Without shipping fee</span>
-                </div>
-                <button
-                  onClick={handleAddToCart}
-                  className="w-full mt-2 flex items-center justify-center gap-1 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add to Cart
-                </button>
+        <div className="flex items-end justify-between gap-2">
+          <div>
+            <p className="text-lg sm:text-xl font-bold text-blue-600">GH₵{product.price.toLocaleString()}</p>
+            <span className="text-[10px] sm:text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">No shipping</span>
+          </div>
+          <button
+            onClick={handleAddToCart}
+            className="flex items-center gap-1 px-2.5 sm:px-3 py-2 bg-blue-600 text-white text-xs sm:text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-95 transition-all shrink-0"
+          >
+            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Add</span>
+            <span className="sm:hidden">+</span>
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
 export default function StoreContent({ slug, importer, products }: StoreContentProps) {
-  const { customerId } = useCart()
+  const { cartCount } = useCart()
   const store = useStore()
   const [showCart, setShowCart] = useState(false)
-  const [showProfile, setShowProfile] = useState(false)
-  
-  const handleLogout = useCallback(async () => {
-  try {
-    const supabase = createCustomerClient(slug)
-    await supabase.auth.signOut()
-    window.location.href = `/store/${slug}`  // hard redirect, not router.push
-  } catch (error) {
-    toast.error('Logout failed')
-  }
-}, [slug])
 
-  
+  const handleLogout = useCallback(async () => {
+    try {
+      await createCustomerClient(slug).auth.signOut()
+      window.location.href = `/store/${slug}`
+    } catch { toast.error('Logout failed') }
+  }, [slug])
+
   if (store.loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading store...</div>
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-9 w-9 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   const { isLoggedIn, customerName } = store
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Hero */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-start">
-            {/* Left: Business Info */}
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+    <div className="min-h-screen bg-gray-50 pb-6">
+
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2 py-3">
+
+            {/* Business name */}
+            <div className="flex-1 min-w-0">
+              <h1 className="text-base sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate leading-tight">
                 {importer.business_name}
               </h1>
-              <div className="mt-3 flex items-center gap-2 text-sm text-gray-700">
-                <span className="flex items-center gap-1">
-                  <Phone className="h-4 w-4" />
-                  {importer.phone}
-                </span>
-                <span className="text-gray-400">|</span>
-                <span className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
-                  {importer.location}
-                </span>
+              <div className="hidden sm:flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                {importer.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{importer.phone}</span>}
+                {importer.location && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{importer.location}</span>}
               </div>
             </div>
 
-            {/* Right: Profile & Cart */}
-            <div className="flex items-center gap-2">
+            {/* Auth + cart */}
+            <div className="flex items-center gap-1.5 shrink-0">
               {isLoggedIn && customerName ? (
                 <>
-                  <Link href={`/store/${slug}/profile`} className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                    <User className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium text-gray-700">{customerName}</span>
-                  </Link>
-                  <button 
-                    type="button"
-                    onClick={handleLogout}
-                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                    title="Logout"
+                  <Link
+                    href={`/store/${slug}/profile`}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
                   >
-                    <LogOut className="h-5 w-5 text-gray-700" />
+                    <User className="h-4 w-4" />
+                    <span className="hidden sm:block max-w-[100px] truncate">{customerName}</span>
+                  </Link>
+                  <button onClick={handleLogout} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" title="Logout">
+                    <LogOut className="h-4 w-4 text-gray-500" />
                   </button>
                 </>
               ) : (
                 <>
-                  <Link 
-                    href={`/store/${slug}/login`}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-                  >
+                  <Link href={`/store/${slug}/login`} className="px-2.5 py-1.5 text-xs sm:text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">
                     Login
                   </Link>
-                  <Link 
-                    href={`/store/${slug}/register`}
-                    className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Create Account
+                  <Link href={`/store/${slug}/register`} className="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">
+                    Sign up
                   </Link>
                 </>
               )}
-              <button 
+
+              <button
                 onClick={() => setShowCart(true)}
-                className="p-2 rounded-full hover:bg-gray-100 transition-colors relative ml-2"
+                className="relative p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors ml-0.5"
               >
-                <ShoppingCart className="h-6 w-6 text-gray-700" />
-                <CartBadge />
+                <ShoppingCart className="h-5 w-5 text-gray-700" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                    {cartCount}
+                  </span>
+                )}
               </button>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Products Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="flex justify-between items-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900">Available Products</h2>
-          <div className="text-sm text-gray-500">{products.length} items</div>
+          {/* Mobile contact row */}
+          <div className="sm:hidden flex items-center gap-3 text-xs text-gray-500 pb-2">
+            {importer.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{importer.phone}</span>}
+            {importer.location && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{importer.location}</span>}
+          </div>
         </div>
+      </header>
+
+      {/* Products */}
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg sm:text-2xl font-bold text-gray-900">Products</h2>
+          <span className="text-xs sm:text-sm text-gray-500">{products.length} items</span>
+        </div>
+
         {products.length === 0 ? (
-          <div className="text-center py-24">
-            <Package className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No products yet</h3>
-            <p className="text-gray-500">Check back later for new pre-orders!</p>
+          <div className="text-center py-20">
+            <Package className="h-14 w-14 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-base font-semibold text-gray-900 mb-1">No products yet</h3>
+            <p className="text-sm text-gray-500">Check back later!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
             {products.map((product) => (
               <ProductCard key={product.id} product={product} slug={slug} />
             ))}
           </div>
         )}
-      </div>
+      </main>
 
-      {/* Footer */}
-      <div className="bg-white border-t border-gray-200 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center text-sm text-gray-500">
-          Pre-order only • Without shipping fee • {new Date().getFullYear()}
-        </div>
-      </div>
+      <footer className="max-w-7xl mx-auto px-4 text-center text-xs text-gray-400 pt-4 border-t border-gray-100">
+        Pre-order only · Without shipping fee
+      </footer>
 
-      {/* Profile Drawer */}
-      {showProfile && <ProfileDrawer slug={slug} onClose={() => setShowProfile(false)} />}
-      
-      {/* Cart Drawer */}
       {showCart && <CartDrawer slug={slug} onClose={() => setShowCart(false)} />}
     </div>
-  )
-}
-
-function CartBadge() {
-  const { cartCount } = useCart()
-  if (cartCount === 0) return null
-  return (
-    <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
-      {cartCount}
-    </span>
   )
 }
 
 function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
   const store = useStore()
   const { cartItems, cartCount, updateQuantity, removeFromCart } = useCart()
-  const total = cartItems.reduce((sum, item) => sum + (item.quantity * item.products.price), 0)
-  
+  const total = cartItems.reduce((s, i) => s + i.quantity * i.products.price, 0)
+  const fmt = (n: number) => n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
+
   const handleCheckout = async () => {
     if (!store.customerId) {
       window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
       return
     }
-    
     const supabase = createClient()
     const { error } = await supabase.from('orders').insert({
       customer_id: store.customerId,
       store_id: store.storeId!,
-      total_amount: total,
-      status: 'pending'
+      total,
+      status: 'pending',
     })
-    
-    if (error) {
-      toast.error('Failed to place order')
-    } else {
-      toast.success('Order placed successfully!')
-      onClose()
-    }
+    if (error) toast.error('Failed to place order')
+    else { toast.success('Order placed!'); onClose() }
   }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
-      
-      {/* Drawer */}
-      <div className="relative w-full max-w-md bg-white h-full shadow-xl flex flex-col">
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">Shopping Cart</h2>
-          <button 
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-100"
-          >
-            <X className="h-5 w-5 text-gray-700" />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative w-full max-w-[360px] bg-white h-full shadow-2xl flex flex-col">
+
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">Shopping Cart</h2>
+            <p className="text-xs text-gray-500">{cartCount} item{cartCount !== 1 ? 's' : ''}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+            <X className="h-5 w-5" />
           </button>
         </div>
-        
-        <div className="flex-1 overflow-y-auto p-6">
+
+        <div className="flex-1 overflow-y-auto p-4">
           {cartCount === 0 ? (
-            <div className="text-center py-8">
-              <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-500">Your cart is empty</p>
+            <div className="text-center py-16">
+              <ShoppingCart className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-sm text-gray-500">Your cart is empty</p>
+              <button onClick={onClose} className="mt-4 text-sm text-blue-600 font-medium">Continue shopping</button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {cartItems.map((item) => (
-                <div key={item.id} className="flex gap-4 py-4 border-b border-gray-100">
-                  {/* Product Image */}
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {item.products.image_url ? (
-                      <img 
-                        src={item.products.image_url} 
-                        alt={item.products.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Package className="h-8 w-8 text-gray-400" />
-                    )}
+                <div key={item.id} className="flex gap-3 p-3 bg-gray-50 rounded-xl">
+                  <div className="w-14 h-14 rounded-lg overflow-hidden bg-white border border-gray-100 shrink-0">
+                    {item.products.image_url
+                      ? <img src={item.products.image_url} alt={item.products.name} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center"><Package className="h-6 w-6 text-gray-300" /></div>
+                    }
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">{item.products.name}</h3>
-                    <p className="text-sm text-gray-500 mb-2">GH₵{item.products.price} each</p>
-                    {/* Quantity Controls */}
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600"
-                      >
-                        -
-                      </button>
-                      <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
-                      <button 
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600"
-                      >
-                        +
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 line-clamp-1">{item.products.name}</p>
+                    <p className="text-sm font-bold text-blue-600">GH₵{fmt(item.products.price)}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="w-6 h-6 rounded-full bg-white border border-gray-200 text-xs font-bold hover:bg-gray-50 flex items-center justify-center">-</button>
+                      <span className="text-sm font-semibold w-4 text-center">{item.quantity}</span>
+                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="w-6 h-6 rounded-full bg-white border border-gray-200 text-xs font-bold hover:bg-gray-50 flex items-center justify-center">+</button>
+                      <button onClick={() => removeFromCart(item.id)} className="ml-1 text-red-400 hover:text-red-600">
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end justify-between">
-                    <button 
-                      onClick={() => removeFromCart(item.id)}
-                      className="text-red-500 hover:text-red-700 p-1"
-                      title="Remove item"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                    <p className="font-bold text-gray-900">GH₵{item.quantity * item.products.price}</p>
-                  </div>
+                  <p className="text-sm font-bold shrink-0 tabular-nums">GH₵{fmt(item.quantity * item.products.price)}</p>
                 </div>
               ))}
             </div>
           )}
         </div>
-        
+
         {cartCount > 0 && (
-          <div className="p-6 border-t border-gray-200 bg-gray-50">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-lg font-semibold text-gray-900">Total</span>
-              <span className="text-xl font-bold text-blue-600">GH₵{total}</span>
+          <div className="p-4 border-t border-gray-100 bg-gray-50 safe-area-bottom">
+            <div className="flex justify-between mb-3">
+              <span className="font-semibold text-gray-900">Total</span>
+              <span className="text-xl font-bold text-blue-600 tabular-nums">GH₵{fmt(total)}</span>
             </div>
             <button
               onClick={handleCheckout}
-              className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors text-sm active:scale-98"
             >
               Place Order
             </button>

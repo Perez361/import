@@ -93,9 +93,9 @@ export default async function CustomersPage({
     : enriched
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">Customers</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)]">Customers</h1>
         <span className="text-sm text-[var(--color-text-muted)]">
           {filtered.length} customer{filtered.length !== 1 ? 's' : ''}
         </span>

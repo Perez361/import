@@ -73,12 +73,12 @@ export default async function PreOrdersPage() {
   const emptyGroups = Object.values(grouped).filter((g) => (g.items?.length || 0) === 0)
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Pre-orders</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text-primary)]">Pre-orders</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
             Active customer orders grouped by product with tracking numbers
           </p>
