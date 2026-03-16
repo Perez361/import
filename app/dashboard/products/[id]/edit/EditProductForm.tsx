@@ -8,6 +8,7 @@ import {
   Truck, ExternalLink, Hash
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { validateImageFile, optimizeProductImage, formatBytes, MAX_INPUT_SIZE_MB } from '@/lib/imageOptimizer'
 
 interface Product {
   id: string
@@ -31,6 +32,8 @@ interface Props {
 export default function EditProductForm({ product, userId }: Props) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
+  const [optimizing, setOptimizing] = useState(false)
+  const [optimizeInfo, setOptimizeInfo] = useState<{ original: number; optimized: number } | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(product.image_url || null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [formData, setFormData] = useState({
@@ -139,15 +142,40 @@ export default function EditProductForm({ product, userId }: Props) {
                 <>
                   <Upload className="h-10 w-10 mx-auto mb-3 text-[var(--color-text-muted)]" />
                   <p className="text-sm text-[var(--color-text-muted)]">Click to upload image</p>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-1">PNG, JPG</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">PNG, JPG, WebP — max 5 MB · auto-optimized</p>
                 </>
               )}
             </div>
+            {optimizing && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+                <svg className="animate-spin h-3 w-3 text-[var(--color-brand)]" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                Optimizing image…
+              </div>
+            )}
+            {optimizeInfo && !optimizing && (
+              <p className="mt-2 text-xs text-[var(--color-success)]">
+                ✓ Compressed {formatBytes(optimizeInfo.original)} → {formatBytes(optimizeInfo.optimized)}
+              </p>
+            )}
             <input
               ref={fileInputRef} type="file" accept="image/*" className="hidden"
-              onChange={(e) => {
+              onChange={async (e) => {
                 const file = e.target.files?.[0]
-                if (file) { setImageFile(file); setImagePreview(URL.createObjectURL(file)) }
+                if (!file) return
+                const err = validateImageFile(file)
+                if (err) { toast.error(err); e.target.value = ''; return }
+                setOptimizing(true)
+                setOptimizeInfo(null)
+                try {
+                  const result = await optimizeProductImage(file)
+                  setImageFile(result.file)
+                  setImagePreview(URL.createObjectURL(result.file))
+                  setOptimizeInfo({ original: result.originalSize, optimized: result.optimizedSize })
+                } catch {
+                  toast.error('Failed to process image. Please try another file.')
+                } finally {
+                  setOptimizing(false)
+                }
               }}
             />
           </div>
