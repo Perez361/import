@@ -1,27 +1,23 @@
 import { createServerSupabase } from '@/lib/supabase/server-only'
+import { slugify } from '@/lib/utils'
 
 export async function createClient() {
   return createServerSupabase()
 }
-import { slugify } from '@/lib/utils'
 
 // Get importer by store_slug
 export async function getImporterBySlug(slug: string) {
   const supabase = await createClient()
-  
-  console.log('Looking for importer with slug:', slug)
-  
-// First try exact store_slug match
+
+  // First try exact store_slug match
   const { data, error } = await supabase
     .from('importers')
     .select('*')
     .eq('store_slug', slug)
     .single()
 
-  console.log('store_slug lookup result:', { data, error })
-  
   if (data) return data
-  
+
   // Fallback 1: case-insensitive store_slug
   const { data: fallbackData } = await supabase
     .from('importers')
@@ -30,8 +26,6 @@ export async function getImporterBySlug(slug: string) {
     .limit(1)
     .single()
 
-  console.log('store_slug fallback result:', { fallbackData })
-  
   if (fallbackData) return fallbackData
 
   // Fallback 2: username
@@ -42,14 +36,13 @@ export async function getImporterBySlug(slug: string) {
     .limit(1)
     .single()
 
-  console.log('username fallback result:', { fallbackData2 })
-  
   if (fallbackData2) return fallbackData2
-  
+
   return null
 }
 
-// Get products by store slug
+// Get products by store slug — explicitly excludes internal fields
+// tracking_number, supplier_url, supplier_name are NEVER sent to the storefront
 export async function getProductsBySlug(slug: string) {
   const importer = await getImporterBySlug(slug)
   if (!importer) return []
@@ -57,7 +50,7 @@ export async function getProductsBySlug(slug: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('products')
-    .select('*')
+    .select('id, name, price, description, image_url, slug, shipping_tag, created_at')
     .eq('importer_id', importer.id)
     .order('created_at', { ascending: false })
 
@@ -68,7 +61,6 @@ export async function getProductsBySlug(slug: string) {
   return data || []
 }
 
-// Customer/cart/order functions (server-side only)
 export async function getOrCreateCustomer(userId: string, storeId: string, customerData: any) {
   const supabase = await createClient()
   const { data } = await supabase
@@ -82,11 +74,7 @@ export async function getOrCreateCustomer(userId: string, storeId: string, custo
 
   const { data: newCustomer } = await supabase
     .from('customers')
-    .insert({
-      store_id: storeId,
-      user_id: userId,
-      ...customerData
-    })
+    .insert({ store_id: storeId, user_id: userId, ...customerData })
     .select()
     .single()
 
@@ -95,7 +83,7 @@ export async function getOrCreateCustomer(userId: string, storeId: string, custo
 
 export async function upsertCartItem(customerId: string, storeId: string, productId: string, quantity: number = 1) {
   const supabase = await createClient()
-  
+
   let { data: cart } = await supabase
     .from('carts')
     .select('id')
@@ -114,11 +102,7 @@ export async function upsertCartItem(customerId: string, storeId: string, produc
 
   await supabase
     .from('cart_items')
-    .upsert({ 
-      cart_id: cart!.id, 
-      product_id: productId, 
-      quantity 
-    }, { onConflict: 'cart_id,product_id' })
+    .upsert({ cart_id: cart!.id, product_id: productId, quantity }, { onConflict: 'cart_id,product_id' })
 
   return cart
 }
@@ -130,14 +114,8 @@ export async function getCartItems(customerId: string, storeId: string) {
     .select(`
       id,
       cart_items (
-        id,
-        product_id,
-        quantity,
-        products (
-          name,
-          price,
-          image_url
-        )
+        id, product_id, quantity,
+        products ( name, price, image_url )
       )
     `)
     .eq('customer_id', customerId)
@@ -154,38 +132,38 @@ export async function getCartCount(customerId: string, storeId: string) {
 
 export async function createOrder(customerId: string, storeId: string) {
   const supabase = await createClient()
-  
+
   const cartItems = await getCartItems(customerId, storeId)
   if (cartItems.length === 0) throw new Error('Cart empty')
 
-  const total = cartItems.reduce((sum: number, item: any) => sum + (item.quantity * item.products.price), 0)
+  const total = cartItems.reduce(
+    (sum: number, item: any) => sum + (item.quantity * item.products.price),
+    0
+  )
 
   const { data: order } = await supabase
     .from('orders')
-    .insert({
-      customer_id: customerId,
-      store_id: storeId,
-      total
-    })
+    .insert({ customer_id: customerId, store_id: storeId, total })
     .select()
     .single()
 
   if (order) {
-    await supabase
-      .from('order_items')
-      .insert(cartItems.map((item: any) => ({
+    await supabase.from('order_items').insert(
+      cartItems.map((item: any) => ({
         order_id: order.id,
         product_id: item.product_id,
         quantity: item.quantity,
-        price: item.products.price
-      })))
+        price: item.products.price,
+      }))
+    )
 
     await supabase
       .from('cart_items')
       .delete()
-      .eq('cart_id', (await supabase.from('carts').select('id').eq('customer_id', customerId).single()).data?.id)
+      .eq('cart_id', (
+        await supabase.from('carts').select('id').eq('customer_id', customerId).single()
+      ).data?.id)
   }
 
   return order
 }
-

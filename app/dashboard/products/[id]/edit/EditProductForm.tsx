@@ -3,7 +3,10 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Package, Upload, Image as ImageIcon, X, Loader2, ArrowLeft } from 'lucide-react'
+import {
+  Package, Upload, Image as ImageIcon, X, Loader2, ArrowLeft,
+  Truck, ExternalLink, Hash
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Product {
@@ -13,7 +16,12 @@ interface Product {
   description: string
   image_url: string
   slug: string
+  tracking_number?: string | null
+  supplier_url?: string | null
+  supplier_name?: string | null
 }
+
+
 
 interface Props {
   product: Product
@@ -29,6 +37,9 @@ export default function EditProductForm({ product, userId }: Props) {
     name: product.name || '',
     price: product.price?.toString() || '',
     description: product.description || '',
+    tracking_number: product.tracking_number || '',
+    supplier_name: product.supplier_name || '',
+    supplier_url: product.supplier_url || '',
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -43,31 +54,17 @@ export default function EditProductForm({ product, userId }: Props) {
       let imageUrl = product.image_url || ''
 
       if (imageFile) {
-        // Delete old image if exists
         if (product.image_url) {
           const oldPath = product.image_url.split('/product-images/')[1]
-          if (oldPath) {
-            await supabase.storage.from('product-images').remove([oldPath])
-          }
+          if (oldPath) await supabase.storage.from('product-images').remove([oldPath])
         }
-
         const fileExt = imageFile.name.split('.').pop()
         const fileName = `${crypto.randomUUID()}.${fileExt}`
         const path = `${userId}/${fileName}`
-
         const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(path, imageFile)
-
-        if (uploadError) {
-          toast.error('Upload failed: ' + uploadError.message)
-          setSaving(false)
-          return
-        }
-
-        imageUrl = supabase.storage
-          .from('product-images')
-          .getPublicUrl(path).data.publicUrl
+          .from('product-images').upload(path, imageFile)
+        if (uploadError) { toast.error('Upload failed: ' + uploadError.message); setSaving(false); return }
+        imageUrl = supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl
       }
 
       const { error: updateError } = await supabase
@@ -77,115 +74,108 @@ export default function EditProductForm({ product, userId }: Props) {
           price: parseFloat(formData.price),
           description: formData.description || '',
           image_url: imageUrl,
+          tracking_number: formData.tracking_number.trim().toUpperCase() || null,
+          supplier_name: formData.supplier_name || null,
+          supplier_url: formData.supplier_url || null,
         })
         .eq('id', product.id)
         .eq('importer_id', userId)
 
       if (updateError) {
-        toast.error('Failed to update product: ' + updateError.message)
+        toast.error('Failed to update: ' + updateError.message)
       } else {
-        toast.success('Product updated successfully!')
+        toast.success('Product updated!')
         router.push('/dashboard/products')
         router.refresh()
       }
-    } catch (error: any) {
-      toast.error(error.message || 'An error occurred')
+    } catch (err: any) {
+      toast.error(err.message || 'An error occurred')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <div className="flex items-center gap-3 mb-8">
+    <div className="p-6 max-w-3xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition"
+          className="p-2 rounded-lg hover:bg-[var(--color-surface)] transition-colors"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-5 w-5 text-[var(--color-text-muted)]" />
         </button>
-        <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Edit Product</h1>
+        <div>
+          <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Edit Product</h1>
+          <p className="text-sm text-[var(--color-text-muted)]">{product.name}</p>
+        </div>
       </div>
 
-      <div className="bg-[var(--color-card)] rounded-2xl border border-[var(--color-border)] p-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Image upload */}
+      {/* Main form */}
+      <div className="bg-[var(--color-card)] rounded-2xl border border-[var(--color-border)] p-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
+
+          {/* Image */}
           <div>
-            <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
-              <ImageIcon className="h-4 w-4" />
-              Product Image
+            <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex items-center gap-2">
+              <ImageIcon className="h-4 w-4" /> Product Image
             </label>
             <div
-              className="border-2 border-dashed border-[var(--color-border)] rounded-xl p-8 text-center hover:border-[var(--color-brand-light)] transition-colors cursor-pointer"
+              className="border-2 border-dashed border-[var(--color-border)] rounded-xl p-6 text-center hover:border-[var(--color-brand)] transition-colors cursor-pointer"
               onClick={() => fileInputRef.current?.click()}
             >
               {imagePreview ? (
                 <div className="relative">
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    className="w-full h-48 object-cover rounded-lg"
-                  />
+                  <img src={imagePreview} alt="Preview" className="w-full h-44 object-cover rounded-lg" />
                   <button
                     type="button"
                     className="absolute top-2 right-2 p-1 bg-[var(--color-danger)] text-white rounded-full"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setImagePreview(null)
-                      setImageFile(null)
-                    }}
+                    onClick={(e) => { e.stopPropagation(); setImagePreview(null); setImageFile(null) }}
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               ) : (
                 <>
-                  <Upload className="h-12 w-12 mx-auto mb-4 text-[var(--color-muted)]" />
-                  <p className="text-[var(--color-text-muted)] mb-1">Click to upload image</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">PNG, JPG</p>
+                  <Upload className="h-10 w-10 mx-auto mb-3 text-[var(--color-text-muted)]" />
+                  <p className="text-sm text-[var(--color-text-muted)]">Click to upload image</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">PNG, JPG</p>
                 </>
               )}
             </div>
             <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
+              ref={fileInputRef} type="file" accept="image/*" className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0]
-                if (file) {
-                  setImageFile(file)
-                  setImagePreview(URL.createObjectURL(file))
-                }
+                if (file) { setImageFile(file); setImagePreview(URL.createObjectURL(file)) }
               }}
-              className="hidden"
             />
           </div>
 
           {/* Name & Price */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold mb-2 text-[var(--color-text-primary)]">
-                Product Name
+              <label className="block text-sm font-semibold mb-1.5 text-[var(--color-text-primary)]">
+                Product Name *
               </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent transition"
+                className="w-full px-3 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent text-sm"
                 placeholder="e.g. Nike Air Max 90"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold mb-2 text-[var(--color-text-primary)]">
-                Price (GH₵)
+              <label className="block text-sm font-semibold mb-1.5 text-[var(--color-text-primary)]">
+                Price (GH₵) *
               </label>
               <input
-                type="number"
-                step="0.01"
+                type="number" step="0.01"
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent transition"
+                className="w-full px-3 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent text-sm"
                 placeholder="650"
                 required
               />
@@ -194,36 +184,86 @@ export default function EditProductForm({ product, userId }: Props) {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-semibold mb-2 text-[var(--color-text-primary)]">
+            <label className="block text-sm font-semibold mb-1.5 text-[var(--color-text-primary)]">
               Description
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={4}
-              className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent transition resize-vertical"
+              rows={3}
+              className="w-full px-3 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent text-sm resize-vertical"
               placeholder="Product details, sizes, pre-order info..."
             />
-            <p className="text-xs text-[var(--color-text-muted)] mt-1">
-              "Without shipping fee" tag is automatically added
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-[var(--color-border)] pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-3 flex items-center gap-2">
+              <Truck className="h-3.5 w-3.5" /> Supplier & Tracking
             </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Tracking number */}
+              <div>
+                <label className="block text-sm font-semibold mb-1.5 text-[var(--color-text-primary)] flex items-center gap-1.5">
+                  <Hash className="h-3.5 w-3.5 text-[var(--color-brand)]" />
+                  Tracking Number
+                </label>
+                <input
+                  type="text"
+                  value={formData.tracking_number}
+                  onChange={(e) => setFormData({ ...formData, tracking_number: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent text-sm font-mono"
+                  placeholder="e.g. 1Z999AA10123456784"
+                />
+                <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                  Latest tracking number from the overseas store
+                </p>
+              </div>
+
+              {/* Supplier name */}
+              <div>
+                <label className="block text-sm font-semibold mb-1.5 text-[var(--color-text-primary)]">
+                  Supplier / Store
+                </label>
+                <input
+                  type="text"
+                  value={formData.supplier_name}
+                  onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent text-sm"
+                  placeholder="e.g. Amazon, Shein, AliExpress"
+                />
+              </div>
+            </div>
+
+            {/* Supplier URL */}
+            <div className="mt-4">
+              <label className="block text-sm font-semibold mb-1.5 text-[var(--color-text-primary)] flex items-center gap-1.5">
+                <ExternalLink className="h-3.5 w-3.5 text-[var(--color-brand)]" />
+                Supplier Product URL
+              </label>
+              <input
+                type="url"
+                value={formData.supplier_url}
+                onChange={(e) => setFormData({ ...formData, supplier_url: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent text-sm"
+                placeholder="https://amazon.com/dp/..."
+              />
+              <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                Link to the product page on the overseas store
+              </p>
+            </div>
           </div>
 
           <button
             type="submit"
             disabled={saving}
-            className="w-full bg-[var(--color-success)] hover:bg-[var(--color-success-dark)] text-white font-semibold py-3 rounded-xl transition-all shadow-lg disabled:opacity-50"
+            className="w-full bg-[var(--color-success)] hover:bg-[var(--color-success)]/90 text-white font-semibold py-3 rounded-xl transition-all shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {saving ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
-              </span>
+              <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
             ) : (
-              <>
-                <Package className="h-4 w-4 mr-2 inline" />
-                Save Changes
-              </>
+              <><Package className="h-4 w-4" /> Save Changes</>
             )}
           </button>
         </form>

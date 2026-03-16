@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Package, Image, Edit3, Trash2, Loader2 } from 'lucide-react'
+import { Package, Image, Edit3, Trash2, Loader2, Hash, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
 import { deleteProductAction } from './actions'
 
 interface Product {
@@ -13,6 +14,8 @@ interface Product {
   description: string
   image_url: string
   created_at: string
+  tracking_number?: string | null
+  supplier_name?: string | null
 }
 
 interface ProductsTableProps {
@@ -23,120 +26,180 @@ export default function ProductsTable({ initialProducts }: ProductsTableProps) {
   const router = useRouter()
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingTrackingId, setEditingTrackingId] = useState<string | null>(null)
+  const [trackingInput, setTrackingInput] = useState('')
+  const [savingTrackingId, setSavingTrackingId] = useState<string | null>(null)
 
   const handleDelete = async (productId: string) => {
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this product? This action cannot be undone.'
-    )
-    if (!confirmed) return
-
+    if (!confirm('Delete this product? This cannot be undone.')) return
     setDeletingId(productId)
-
     try {
-      const result = await deleteProductAction(productId)
-
-      if (result?.error) {
-        toast.error(result.error)
-      } else {
+      const result: any = await deleteProductAction(productId)
+      if (result?.error) toast.error(result.error)
+      else {
         setProducts((prev) => prev.filter((p) => p.id !== productId))
-        toast.success('Product deleted successfully')
+        toast.success('Product deleted')
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to delete product')
+      toast.error(err?.message || 'Failed to delete')
     } finally {
       setDeletingId(null)
     }
   }
 
-  const handleEdit = (productId: string) => {
-    router.push(`/dashboard/products/${productId}/edit`)
+  const startEditTracking = (product: Product) => {
+    setEditingTrackingId(product.id)
+    setTrackingInput(product.tracking_number || '')
   }
 
-  const demoProducts = products.map((p) => ({
-    id: `#P${p.id.slice(-4)}`,
-    realId: p.id,
-    name: p.name,
-    price: p.price.toString(),
-    description: p.description || '',
-    image: !!p.image_url,
-    stock: 'Pre-order',
-    costPrice: '0',
-    sellingPrice: p.price.toString(),
-    status: 'Active',
-  }))
+  const cancelEditTracking = () => {
+    setEditingTrackingId(null)
+    setTrackingInput('')
+  }
+
+  const saveTracking = async (productId: string) => {
+    setSavingTrackingId(productId)
+    const supabase = createClient()
+    const value = trackingInput.trim().toUpperCase() || null
+    const { error } = await supabase
+      .from('products')
+      .update({ tracking_number: value })
+      .eq('id', productId)
+    setSavingTrackingId(null)
+    if (error) {
+      toast.error('Failed to save tracking number')
+    } else {
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, tracking_number: value } : p))
+      )
+      setEditingTrackingId(null)
+      toast.success(value ? 'Tracking number saved' : 'Tracking number cleared')
+    }
+  }
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
           <tr className="border-b border-[var(--color-border)]">
-            <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">ID</th>
-            <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Product</th>
-            <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Stock</th>
-            <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Cost</th>
-            <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Selling</th>
-            <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Profit</th>
-            <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Status</th>
-            <th className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide">Actions</th>
+            {['Tracking No.', 'Product', 'Price', 'Status', 'Actions'].map((h) => (
+              <th
+                key={h}
+                className="text-left px-6 py-4 font-semibold text-[var(--color-text-primary)] text-sm uppercase tracking-wide whitespace-nowrap"
+              >
+                {h}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--color-border)]">
-          {demoProducts.map((product) => (
+          {products.map((product) => (
             <tr key={product.id} className="hover:bg-[var(--color-surface)] transition-colors">
-              <td className="px-6 py-4 font-mono text-sm text-[var(--color-text-muted)]">{product.id}</td>
+
+              {/* Tracking No. — inline editable */}
+              <td className="px-6 py-4">
+                {editingTrackingId === product.id ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={trackingInput}
+                      onChange={(e) => setTrackingInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveTracking(product.id)
+                        if (e.key === 'Escape') cancelEditTracking()
+                      }}
+                      placeholder="e.g. 1Z999AA1..."
+                      className="w-44 px-2.5 py-1.5 rounded-lg border border-[var(--color-brand)] bg-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
+                    />
+                    <button
+                      onClick={() => saveTracking(product.id)}
+                      disabled={savingTrackingId === product.id}
+                      className="p-1.5 rounded-lg bg-[var(--color-success)] text-white hover:bg-[var(--color-success)]/90 disabled:opacity-50 transition-all"
+                    >
+                      {savingTrackingId === product.id
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <Check className="h-3.5 w-3.5" />}
+                    </button>
+                    <button
+                      onClick={cancelEditTracking}
+                      className="p-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition-all"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => startEditTracking(product)}
+                    className="group flex items-center gap-1.5 text-left"
+                    title="Click to add/edit tracking number"
+                  >
+                    {product.tracking_number ? (
+                      <span className="font-mono text-xs bg-[var(--color-surface)] border border-[var(--color-border)] group-hover:border-[var(--color-brand)] px-2.5 py-1.5 rounded-lg text-[var(--color-text-primary)] transition-colors">
+                        {product.tracking_number}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] group-hover:text-[var(--color-brand)] border border-dashed border-[var(--color-border)] group-hover:border-[var(--color-brand)] px-2.5 py-1.5 rounded-lg transition-colors">
+                        <Hash className="h-3 w-3" />
+                        Add tracking
+                      </span>
+                    )}
+                  </button>
+                )}
+              </td>
+
+              {/* Product */}
               <td className="px-6 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-muted)] overflow-hidden">
-                    {product.image ? (
-                      <Image className="h-6 w-6 text-[var(--color-text-muted)]" />
-                    ) : (
-                      <Package className="h-6 w-6 text-[var(--color-text-muted)]" />
-                    )}
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-muted)] overflow-hidden shrink-0">
+                    {product.image_url
+                      ? <Image className="h-5 w-5 text-[var(--color-text-muted)]" />
+                      : <Package className="h-5 w-5 text-[var(--color-text-muted)]" />}
                   </div>
                   <div>
-                    <div className="font-semibold text-[var(--color-text-primary)]">{product.name}</div>
-                    <div className="text-xs text-[var(--color-text-muted)]">SKU: PRD-{product.id.slice(2)}</div>
+                    <p className="font-semibold text-[var(--color-text-primary)] text-sm">{product.name}</p>
+                    {product.supplier_name && (
+                      <p className="text-xs text-[var(--color-text-muted)]">{product.supplier_name}</p>
+                    )}
                   </div>
                 </div>
               </td>
-              <td className="px-6 py-4">
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[var(--color-brand-light)] text-[var(--color-brand)]">
-                  {product.stock}
-                </span>
+
+              {/* Price */}
+              <td className="px-6 py-4 font-semibold text-[var(--color-text-primary)]">
+                GH₵{product.price.toLocaleString('en-GH')}
               </td>
-              <td className="px-6 py-4 text-sm text-[var(--color-text-muted)]">GH₵{product.costPrice}</td>
-              <td className="px-6 py-4 font-semibold text-[var(--color-text-primary)]">GH₵{product.sellingPrice}</td>
-              <td className="px-6 py-4 font-semibold text-[var(--color-success)]">
-                {(parseInt(product.sellingPrice) - parseInt(product.costPrice)).toLocaleString()}
-              </td>
+
+              {/* Status */}
               <td className="px-6 py-4">
-                <span className="px-2 py-1 bg-[var(--color-success-light)] text-[var(--color-success)] text-xs rounded-full font-medium">
+                <span className="px-2.5 py-1 bg-[var(--color-success-light)] text-[var(--color-success)] text-xs rounded-full font-semibold">
                   Active
                 </span>
               </td>
+
+              {/* Actions */}
               <td className="px-6 py-4">
                 <div className="flex gap-1">
                   <button
-                    onClick={() => handleEdit(product.realId)}
+                    onClick={() => router.push(`/dashboard/products/${product.id}/edit`)}
                     className="p-1.5 text-[var(--color-brand)] hover:bg-[var(--color-brand-light)] rounded-lg transition-all"
                     title="Edit product"
                   >
                     <Edit3 className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(product.realId)}
-                    disabled={deletingId === product.realId}
+                    onClick={() => handleDelete(product.id)}
+                    disabled={deletingId === product.id}
                     className="p-1.5 text-[var(--color-danger)] hover:bg-[var(--color-danger-light)] rounded-lg transition-all disabled:opacity-50"
                     title="Delete product"
                   >
-                    {deletingId === product.realId ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
+                    {deletingId === product.id
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Trash2 className="h-4 w-4" />}
                   </button>
                 </div>
               </td>
+
             </tr>
           ))}
         </tbody>

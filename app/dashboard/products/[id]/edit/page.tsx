@@ -14,6 +14,7 @@ export default async function EditProductPage({
   if (!user) redirect('/login')
 
   const supabase = await createClient()
+
   const { data: product, error } = await supabase
     .from('products')
     .select('*')

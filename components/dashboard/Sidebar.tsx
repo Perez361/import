@@ -3,16 +3,8 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
-  Home, 
-  Package, 
-  ShoppingCart, 
-  Users, 
-  Truck, 
-  Store, 
-  TrendingUp, 
-  Settings, 
-  LogOut,
-  BarChart2,
+  Home, Package, ShoppingCart, Users, Truck,
+  Store, TrendingUp, Settings, LogOut, BarChart2, ClipboardCheck,
 } from 'lucide-react'
 import { logoutAction } from '@/lib/actions'
 
@@ -32,6 +24,7 @@ export default function Sidebar({ businessName }: SidebarProps) {
     { href: '/dashboard', label: 'Dashboard', icon: Home },
     { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart2 },
     { href: '/dashboard/products', label: 'Products', icon: Package },
+    { href: '/dashboard/pre-orders', label: 'Pre-orders', icon: ClipboardCheck },
     { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart },
     { href: '/dashboard/customers', label: 'Customers', icon: Users },
     { href: '/dashboard/shipments', label: 'Shipments', icon: Truck },
@@ -42,7 +35,6 @@ export default function Sidebar({ businessName }: SidebarProps) {
 
   return (
     <div className="w-64 border-r border-[var(--color-border)] bg-[var(--color-card)] shadow-sm">
-      {/* Business Header */}
       <div className="p-6 border-b border-[var(--color-border)]">
         <h1 className="text-xl font-bold text-[var(--color-text-primary)] truncate">
           {businessName}
@@ -50,7 +42,6 @@ export default function Sidebar({ businessName }: SidebarProps) {
         <p className="text-xs text-[var(--color-text-muted)]">Importer Dashboard</p>
       </div>
 
-      {/* Nav Links */}
       <nav className="p-2">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
@@ -71,7 +62,6 @@ export default function Sidebar({ businessName }: SidebarProps) {
         })}
       </nav>
 
-      {/* Logout */}
       <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-[var(--color-border)]">
         <button
           onClick={handleLogout}
