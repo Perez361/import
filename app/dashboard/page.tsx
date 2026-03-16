@@ -2,37 +2,108 @@ import { redirect } from 'next/navigation'
 import { Package2, ClipboardList, Users, TrendingUp, Package, ShoppingCart, Truck } from 'lucide-react'
 import { getAuthenticatedUser } from '@/lib/auth/session'
 import { getImporter } from '@/lib/importer'
-import DashboardHeader from '@/components/dashboard/DashboardHeader'
+import { createClient } from '@/lib/supabase/server'
 
 export const metadata = {
   title: 'Dashboard – ImportFlow PRO',
 }
 
-interface StatCard {
-  label: string
-  value: string
-  icon: React.ElementType
-  note: string
-}
-
-const statCards: StatCard[] = [
-  { label: 'Products', value: '24', icon: Package2, note: '+2 today' },
-  { label: 'Orders', value: '7', icon: ClipboardList, note: '2 pending' },
-  { label: 'Customers', value: '8', icon: Users, note: '+1 new' },
-  { label: 'Revenue', value: 'GH₵2,450', icon: TrendingUp, note: '+12% vs last week' },
-]
-
 export default async function DashboardPage() {
   const user = await getAuthenticatedUser()
-
-  if (!user) {
-    redirect('/login')
-  }
+  if (!user) redirect('/login')
 
   const importer = await getImporter(user.id)
-
   const businessName = importer?.business_name || user.user_metadata?.business_name || 'My Business'
   const email = user.email || ''
+
+  const supabase = await createClient()
+
+  // Fetch all real data in parallel
+  const [
+    { count: productCount },
+    { count: orderCount },
+    { count: customerCount },
+    { data: orders },
+    { data: recentActivity },
+  ] = await Promise.all([
+    supabase
+      .from('products')
+      .select('*', { count: 'exact', head: true })
+      .eq('importer_id', user.id),
+    supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('store_id', user.id),
+    supabase
+      .from('customers')
+      .select('*', { count: 'exact', head: true })
+      .eq('store_id', user.id),
+    supabase
+      .from('orders')
+      .select('total, status')
+      .eq('store_id', user.id),
+    supabase
+      .from('orders')
+      .select(`
+        id,
+        status,
+        created_at,
+        total,
+        customers (full_name, username)
+      `)
+      .eq('store_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(5),
+  ])
+
+  // Pending orders count
+  const pendingCount = orders?.filter(
+    (o) => o.status === 'pending'
+  ).length ?? 0
+
+  // Total revenue
+  const totalRevenue = orders?.reduce(
+    (sum, o) => sum + (parseFloat(String(o.total)) || 0),
+    0
+  ) ?? 0
+
+  const fmt = (n: number) =>
+    n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
+
+  const statCards = [
+    {
+      label: 'Products',
+      value: String(productCount ?? 0),
+      icon: Package2,
+      note: 'total listed',
+    },
+    {
+      label: 'Orders',
+      value: String(orderCount ?? 0),
+      icon: ClipboardList,
+      note: `${pendingCount} pending`,
+    },
+    {
+      label: 'Customers',
+      value: String(customerCount ?? 0),
+      icon: Users,
+      note: 'registered',
+    },
+    {
+      label: 'Revenue',
+      value: `GH₵${fmt(totalRevenue)}`,
+      icon: TrendingUp,
+      note: 'all time',
+    },
+  ]
+
+  const statusColor: Record<string, string> = {
+    pending: 'bg-[var(--color-warning-light)] text-[var(--color-warning)]',
+    processing: 'bg-[var(--color-brand-light)] text-[var(--color-brand)]',
+    shipped: 'bg-sky-50 text-sky-600',
+    delivered: 'bg-[var(--color-success-light)] text-[var(--color-success)]',
+    cancelled: 'bg-[var(--color-danger-light)] text-[var(--color-danger)]',
+  }
 
   return (
     <div className="min-h-screen bg-[var(--color-surface)]">
@@ -69,47 +140,58 @@ export default async function DashboardPage() {
           ))}
         </div>
 
-        {/* Recent Activity */}
+        {/* Recent Orders */}
         <div className="mt-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 shadow-sm">
-          <h3 className="mb-6 text-lg font-semibold text-[var(--color-text-primary)]">Recent Activity</h3>
-          <div className="divide-y divide-[var(--color-border)]">
-            <div className="flex items-center justify-between py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-success-light)]">
-                  <Package className="h-5 w-5 text-[var(--color-success)]" />
-                </div>
-                <div>
-                  <p className="font-medium text-[var(--color-text-primary)]">New product added</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">T-Shirts (12 units)</p>
-                </div>
-              </div>
-              <span className="text-xs text-[var(--color-text-muted)]">2 min ago</span>
+          <h3 className="mb-6 text-lg font-semibold text-[var(--color-text-primary)]">Recent Orders</h3>
+
+          {!recentActivity || recentActivity.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <ShoppingCart className="h-10 w-10 text-[var(--color-text-muted)]" />
+              <p className="text-sm text-[var(--color-text-muted)]">No orders yet</p>
             </div>
-            <div className="flex items-center justify-between py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-brand-light)]">
-                  <ShoppingCart className="h-5 w-5 text-[var(--color-brand)]" />
-                </div>
-                <div>
-                  <p className="font-medium text-[var(--color-text-primary)]">Order #124 confirmed</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">Kofi Mensah</p>
-                </div>
-              </div>
-              <span className="text-xs text-[var(--color-text-muted)]">1 hr ago</span>
+          ) : (
+            <div className="divide-y divide-[var(--color-border)]">
+              {recentActivity.map((order: any) => {
+                const customerName =
+                  order.customers?.full_name ||
+                  order.customers?.username ||
+                  'Unknown customer'
+                const status = order.status?.toLowerCase() || 'pending'
+                const timeAgo = getTimeAgo(order.created_at)
+
+                return (
+                  <div key={order.id} className="flex items-center justify-between py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-brand-light)]">
+                        <ShoppingCart className="h-5 w-5 text-[var(--color-brand)]" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-[var(--color-text-primary)]">
+                          Order #{order.id.slice(-6).toUpperCase()}
+                        </p>
+                        <p className="text-xs text-[var(--color-text-muted)]">{customerName}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
+                          statusColor[status] || 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {status}
+                      </span>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-[var(--color-success)]">
+                          GH₵{fmt(parseFloat(String(order.total)) || 0)}
+                        </p>
+                        <p className="text-xs text-[var(--color-text-muted)]">{timeAgo}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-            <div className="flex items-center justify-between py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-warning-light)]">
-                  <Truck className="h-5 w-5 text-[var(--color-warning)]" />
-                </div>
-                <div>
-                  <p className="font-medium text-[var(--color-text-primary)]">Shipment arrived</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">Tracking #GHX123</p>
-                </div>
-              </div>
-              <span className="text-xs text-[var(--color-text-muted)]">3 hrs ago</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Account Details */}
@@ -130,10 +212,38 @@ export default async function DashboardPage() {
               </dt>
               <dd className="text-sm font-medium text-[var(--color-text-primary)]">{email}</dd>
             </div>
+            {importer?.phone && (
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
+                  Phone
+                </dt>
+                <dd className="text-sm font-medium text-[var(--color-text-primary)]">{importer.phone}</dd>
+              </div>
+            )}
+            {importer?.location && (
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
+                  Location
+                </dt>
+                <dd className="text-sm font-medium text-[var(--color-text-primary)]">{importer.location}</dd>
+              </div>
+            )}
           </dl>
         </div>
+
       </main>
     </div>
   )
 }
 
+function getTimeAgo(dateStr: string): string {
+  const now = new Date()
+  const date = new Date(dateStr)
+  const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diff < 60) return 'just now'
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`
+  if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`
+  return date.toLocaleDateString('en', { month: 'short', day: 'numeric' })
+}
