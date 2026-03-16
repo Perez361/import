@@ -15,13 +15,13 @@ import InactivityWarning from '@/components/InactivityWarning'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart2 },
   { href: '/dashboard/products', label: 'Products', icon: Package },
   { href: '/dashboard/pre-orders', label: 'Pre-orders', icon: ClipboardCheck },
   { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart },
   { href: '/dashboard/customers', label: 'Customers', icon: Users },
   { href: '/dashboard/shipments', label: 'Shipments', icon: Truck },
   { href: '/dashboard/storefront', label: 'My Store', icon: Store },
+  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart2 },
   { href: '/dashboard/finances', label: 'Finances', icon: TrendingUp },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]

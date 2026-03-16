@@ -8,7 +8,6 @@ export const metadata = {
   title: 'Analytics – ImportFlow PRO',
 }
 
-// Load the analytics dashboard component
 const AnalyticsDashboard = dynamic(() => import('./AnalyticsDashboard'), {
   loading: () => (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -54,21 +53,21 @@ export default async function AnalyticsPage({
   ] = await Promise.all([
     supabase
       .from('orders')
-      .select('id, total, status, created_at, customer_id')
+      .select('id, total, shipping_fee, status, created_at, customer_id')
       .eq('store_id', importerId)
       .gte('created_at', sinceISO),
     supabase
       .from('orders')
-      .select('id, total, status, created_at, customer_id')
+      .select('id, total, shipping_fee, status, created_at, customer_id')
       .eq('store_id', importerId)
       .gte('created_at', prevSinceISO)
       .lt('created_at', sinceISO),
     supabase
       .from('orders')
-      .select('id, total, status, created_at, customer_id')
+      .select('id, total, shipping_fee, status, created_at, customer_id')
       .eq('store_id', importerId)
       .order('created_at', { ascending: false })
-      .limit(200),
+      .limit(500),
     supabase
       .from('customers')
       .select('id, created_at')
