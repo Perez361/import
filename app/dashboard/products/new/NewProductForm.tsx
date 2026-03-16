@@ -2,9 +2,9 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Package, Upload, Image as ImageIcon, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
 import { validateImageFile, optimizeProductImage, formatBytes, MAX_INPUT_SIZE_MB } from '@/lib/imageOptimizer'
 
 interface Props {
@@ -13,6 +13,8 @@ interface Props {
 
 export default function NewProductForm({ userId }: Props) {
   const router = useRouter()
+  const supabase = createClient()
+
   const [loading, setLoading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -22,8 +24,34 @@ export default function NewProductForm({ userId }: Props) {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const err = validateImageFile(file)
+    if (err) {
+      toast.error(err)
+      e.target.value = ''
+      return
+    }
+
+    setOptimizing(true)
+    setOptimizeInfo(null)
+    try {
+      const result = await optimizeProductImage(file)
+      setImageFile(result.file)
+      setImagePreview(URL.createObjectURL(result.file))
+      setOptimizeInfo({ original: result.originalSize, optimized: result.optimizedSize })
+    } catch {
+      toast.error('Failed to process image. Please try another file.')
+    } finally {
+      setOptimizing(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!imageFile) { toast.error('Please select a product image'); return }
     if (!formData.name) { toast.error('Please enter a product name'); return }
     if (!formData.price) { toast.error('Please enter a price'); return }
@@ -31,10 +59,14 @@ export default function NewProductForm({ userId }: Props) {
     setLoading(true)
 
     try {
-      // Create client inside handler to always get fresh session
-      const supabase = createClient()
+      // Verify session is active
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        toast.error('Your session has expired. Please log in again.')
+        router.push('/login')
+        return
+      }
 
-      // Upload already-optimized image
       const fileExt = imageFile.name.split('.').pop() || 'jpg'
       const fileName = `${crypto.randomUUID()}.${fileExt}`
       const path = `${userId}/${fileName}`
@@ -45,7 +77,6 @@ export default function NewProductForm({ userId }: Props) {
 
       if (uploadError) {
         toast.error('Image upload failed: ' + uploadError.message)
-        setLoading(false)
         return
       }
 
@@ -72,13 +103,13 @@ export default function NewProductForm({ userId }: Props) {
 
       if (insertError) {
         toast.error('Failed to save product: ' + insertError.message)
-        // Clean up orphaned image
         await supabase.storage.from('product-images').remove([path])
-      } else {
-        toast.success('Product created!')
-        router.push('/dashboard/products')
-        router.refresh()
+        return
       }
+
+      toast.success('Product created!')
+      router.push('/dashboard/products')
+      router.refresh()
     } catch (err: any) {
       toast.error(err?.message || 'Something went wrong')
     } finally {
@@ -146,9 +177,7 @@ export default function NewProductForm({ userId }: Props) {
             {optimizeInfo && !optimizing && (
               <p className="mt-2 text-xs text-[var(--color-success)] flex items-center gap-1">
                 <span>✓</span>
-                <span>
-                  Compressed {formatBytes(optimizeInfo.original)} → {formatBytes(optimizeInfo.optimized)}
-                </span>
+                <span>Compressed {formatBytes(optimizeInfo.original)} → {formatBytes(optimizeInfo.optimized)}</span>
               </p>
             )}
 
@@ -157,24 +186,7 @@ export default function NewProductForm({ userId }: Props) {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={async (e) => {
-                const file = e.target.files?.[0]
-                if (!file) return
-                const err = validateImageFile(file)
-                if (err) { toast.error(err); e.target.value = ''; return }
-                setOptimizing(true)
-                setOptimizeInfo(null)
-                try {
-                  const result = await optimizeProductImage(file)
-                  setImageFile(result.file)
-                  setImagePreview(URL.createObjectURL(result.file))
-                  setOptimizeInfo({ original: result.originalSize, optimized: result.optimizedSize })
-                } catch {
-                  toast.error('Failed to process image. Please try another file.')
-                } finally {
-                  setOptimizing(false)
-                }
-              }}
+              onChange={handleImageChange}
             />
           </div>
 
