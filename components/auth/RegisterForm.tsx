@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Loader2, Mail } from 'lucide-react'
 import FormInput from './FormInput'
+import GoogleButton from './GoogleButton'
 import { createClient } from '@/lib/supabase/client'
 
 const registerSchema = z
@@ -44,7 +45,7 @@ export default function RegisterForm() {
 
   const onSubmit = async (data: RegisterFormData) => {
     const supabase = createClient()
-    const { data: signupResult, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
@@ -79,10 +80,7 @@ export default function RegisterForm() {
             We sent a verification link to your email address. Click it to activate your account.
           </p>
         </div>
-        <Link
-          href="/login"
-          className="mt-1 text-sm font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors"
-        >
+        <Link href="/login" className="mt-1 text-sm font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors">
           Back to Login
         </Link>
       </div>
@@ -90,92 +88,48 @@ export default function RegisterForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-      <FormInput
-        label="Business Name"
-        placeholder="Acme Imports Ltd."
-        error={errors.businessName?.message}
-        {...register('businessName')}
-      />
-      <FormInput
-        label="Full Name"
-        placeholder="John Doe"
-        error={errors.fullName?.message}
-        {...register('fullName')}
-      />
-      <FormInput
-        label="Username"
-        placeholder="john_doe"
-        error={errors.username?.message}
-        {...register('username')}
-      />
-      <FormInput
-        label="Phone Number"
-        type="tel"
-placeholder="+233 80 000 0000"
-        error={errors.phone?.message}
-        {...register('phone')}
+    <div className="flex flex-col gap-5">
+      <GoogleButton
+        label="Sign up with Google"
+        userType="importer"
+        redirectTo="/dashboard"
       />
 
-      {/* Location */}
-      <FormInput
-        label="Location"
-placeholder="Accra, Ghana"
-        error={errors.location?.message}
-        {...register('location')}
-      />
+      <div className="relative flex items-center gap-3">
+        <div className="h-px flex-1 bg-(--color-border)" />
+        <span className="text-xs text-(--color-text-muted)">or register with email</span>
+        <div className="h-px flex-1 bg-(--color-border)" />
+      </div>
 
-      {/* Email */}
-      <FormInput
-        label="Email"
-        type="email"
-        placeholder="you@business.com"
-        error={errors.email?.message}
-        {...register('email')}
-      />
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+        <FormInput label="Business Name" placeholder="Acme Imports Ltd." error={errors.businessName?.message} {...register('businessName')} />
+        <FormInput label="Full Name" placeholder="John Doe" error={errors.fullName?.message} {...register('fullName')} />
+        <FormInput label="Username" placeholder="john_doe" error={errors.username?.message} {...register('username')} />
+        <FormInput label="Phone Number" type="tel" placeholder="+233 80 000 0000" error={errors.phone?.message} {...register('phone')} />
+        <FormInput label="Location" placeholder="Accra, Ghana" error={errors.location?.message} {...register('location')} />
+        <FormInput label="Email" type="email" placeholder="you@business.com" error={errors.email?.message} {...register('email')} />
+        <FormInput label="Password" type="password" placeholder="Min. 8 characters" error={errors.password?.message} {...register('password')} />
+        <FormInput label="Confirm Password" type="password" placeholder="Re-enter your password" error={errors.confirmPassword?.message} {...register('confirmPassword')} />
 
-      {/* Password */}
-      <FormInput
-        label="Password"
-        type="password"
-        placeholder="Min. 8 characters"
-        error={errors.password?.message}
-        {...register('password')}
-      />
-
-      {/* Confirm Password */}
-      <FormInput
-        label="Confirm Password"
-        type="password"
-        placeholder="Re-enter your password"
-        error={errors.confirmPassword?.message}
-        {...register('confirmPassword')}
-      />
-
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="mt-1 flex items-center justify-center gap-2 rounded-lg bg-(--color-brand) px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-(--color-brand-dark) disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {isSubmitting ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Creating account…
-          </>
-        ) : (
-          'Create Free Account'
-        )}
-      </button>
-
-      <p className="text-center text-sm text-(--color-text-muted)">
-        Already have an account?{' '}
-        <Link
-          href="/login"
-          className="font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors"
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="mt-1 flex items-center justify-center gap-2 rounded-lg bg-(--color-brand) px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-(--color-brand-dark) disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Log in
-        </Link>
-      </p>
-    </form>
+          {isSubmitting ? (
+            <><Loader2 className="h-4 w-4 animate-spin" />Creating account…</>
+          ) : (
+            'Create Free Account'
+          )}
+        </button>
+
+        <p className="text-center text-sm text-(--color-text-muted)">
+          Already have an account?{' '}
+          <Link href="/login" className="font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors">
+            Log in
+          </Link>
+        </p>
+      </form>
+    </div>
   )
 }

@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import FormInput from './FormInput'
+import GoogleButton from './GoogleButton'
 import { createCustomerClient } from '@/lib/supabase/customer-client'
 
 const registerSchema = z.object({
@@ -38,7 +39,6 @@ export default function CustomerRegisterForm({ slug }: { slug: string }) {
   } = useForm<RegisterFormData>({ resolver: zodResolver(registerSchema) })
 
   const onSubmit = async (data: RegisterFormData) => {
-    // Always use the customer client scoped to this slug
     const supabase = createCustomerClient(slug)
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -68,37 +68,49 @@ export default function CustomerRegisterForm({ slug }: { slug: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-      <FormInput label="Full Name" placeholder="John Doe" error={errors.fullName?.message} {...register('fullName')} />
-      <FormInput label="Username" placeholder="johndoe123" error={errors.username?.message} {...register('username')} />
-      <FormInput label="Contact" type="tel" placeholder="0541234567" error={errors.contact?.message} {...register('contact')} />
-      <FormInput label="Email" type="email" placeholder="john@example.com" error={errors.email?.message} {...register('email')} />
-      <FormInput label="Location" placeholder="Accra, Ghana" error={errors.location?.message} {...register('location')} />
-      <FormInput label="Shipping Address" placeholder="123 Street, Accra" error={errors.shippingAddress?.message} {...register('shippingAddress')} />
-      <FormInput label="Password" type="password" placeholder="At least 6 characters" error={errors.password?.message} {...register('password')} />
-      <FormInput label="Confirm Password" type="password" placeholder="Re-enter your password" error={errors.confirmPassword?.message} {...register('confirmPassword')} />
+    <div className="flex flex-col gap-5">
+      <GoogleButton
+        label="Sign up with Google"
+        userType="customer"
+        storeSlug={slug}
+        redirectTo={redirectTo}
+      />
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="mt-1 flex items-center justify-center gap-2 rounded-lg bg-(--color-brand) px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-(--color-brand-dark) disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {isSubmitting ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Creating account…
-          </>
-        ) : (
-          'Create Account'
-        )}
-      </button>
+      <div className="relative flex items-center gap-3">
+        <div className="h-px flex-1 bg-(--color-border)" />
+        <span className="text-xs text-(--color-text-muted)">or register with email</span>
+        <div className="h-px flex-1 bg-(--color-border)" />
+      </div>
 
-      <p className="text-center text-sm text-(--color-text-muted)">
-        Already have an account?{' '}
-        <Link href={`/store/${slug}/login?redirect=${encodeURIComponent(redirectTo)}`} className="font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors">
-          Sign in
-        </Link>
-      </p>
-    </form>
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+        <FormInput label="Full Name" placeholder="John Doe" error={errors.fullName?.message} {...register('fullName')} />
+        <FormInput label="Username" placeholder="johndoe123" error={errors.username?.message} {...register('username')} />
+        <FormInput label="Contact" type="tel" placeholder="0541234567" error={errors.contact?.message} {...register('contact')} />
+        <FormInput label="Email" type="email" placeholder="john@example.com" error={errors.email?.message} {...register('email')} />
+        <FormInput label="Location" placeholder="Accra, Ghana" error={errors.location?.message} {...register('location')} />
+        <FormInput label="Shipping Address" placeholder="123 Street, Accra" error={errors.shippingAddress?.message} {...register('shippingAddress')} />
+        <FormInput label="Password" type="password" placeholder="At least 6 characters" error={errors.password?.message} {...register('password')} />
+        <FormInput label="Confirm Password" type="password" placeholder="Re-enter your password" error={errors.confirmPassword?.message} {...register('confirmPassword')} />
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="mt-1 flex items-center justify-center gap-2 rounded-lg bg-(--color-brand) px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-(--color-brand-dark) disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSubmitting ? (
+            <><Loader2 className="h-4 w-4 animate-spin" />Creating account…</>
+          ) : (
+            'Create Account'
+          )}
+        </button>
+
+        <p className="text-center text-sm text-(--color-text-muted)">
+          Already have an account?{' '}
+          <Link href={`/store/${slug}/login?redirect=${encodeURIComponent(redirectTo)}`} className="font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors">
+            Sign in
+          </Link>
+        </p>
+      </form>
+    </div>
   )
 }

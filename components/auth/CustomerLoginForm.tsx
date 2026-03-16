@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import FormInput from './FormInput'
+import GoogleButton from './GoogleButton'
 import { createCustomerClient } from '@/lib/supabase/customer-client'
 
 const loginSchema = z.object({
@@ -29,90 +30,99 @@ export default function CustomerLoginForm({ slug }: { slug: string }) {
   } = useForm<LoginFormData>({ resolver: zodResolver(loginSchema) })
 
   const onSubmit = async (data: LoginFormData) => {
-  const supabase = createCustomerClient(slug)
-  const { data: authData, error } = await supabase.auth.signInWithPassword({
-    email: data.email,
-    password: data.password,
-  })
+    const supabase = createCustomerClient(slug)
+    const { data: authData, error } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password: data.password,
+    })
 
-  if (error) {
-    toast.error(error.message)
-    return
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
+    const { data: importerCheck } = await supabase
+      .from('importers')
+      .select('id')
+      .eq('id', authData.user.id)
+      .maybeSingle()
+
+    if (importerCheck) {
+      await supabase.auth.signOut()
+      toast.error('This is an importer account. Please log in at importflow.app/login to access your dashboard.')
+      return
+    }
+
+    const { data: customerCheck } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('user_id', authData.user.id)
+      .maybeSingle()
+
+    if (!customerCheck) {
+      await supabase.auth.signOut()
+      toast.error('No customer account found for this store. Please create an account first.')
+      return
+    }
+
+    toast.success('Welcome back!')
+    await router.push(redirectTo)
+    router.refresh()
   }
-
-  // Check if this user has a customer record for this store
-  const { data: importerCheck } = await supabase
-    .from('importers')
-    .select('id')
-    .eq('id', authData.user.id)
-    .maybeSingle()
-
-  if (importerCheck) {
-    // This is an importer account — sign them out and show message
-    await supabase.auth.signOut()
-    toast.error('This is an importer account. Please log in at importflow.app/login to access your dashboard.')
-    return
-  }
-
-  // Also check they actually have a customer record for THIS store
-  const { data: customerCheck } = await supabase
-    .from('customers')
-    .select('id')
-    .eq('user_id', authData.user.id)
-    .maybeSingle()
-
-  if (!customerCheck) {
-    await supabase.auth.signOut()
-    toast.error('No customer account found for this store. Please create an account first.')
-    return
-  }
-
-  toast.success('Welcome back!')
-  await router.push(redirectTo)
-  router.refresh()
-}
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-      <FormInput
-        label="Email"
-        type="email"
-        placeholder="you@example.com"
-        error={errors.email?.message}
-        {...register('email')}
-      />
-      <FormInput
-        label="Password"
-        type="password"
-        placeholder="Your password"
-        error={errors.password?.message}
-        {...register('password')}
+    <div className="flex flex-col gap-5">
+      <GoogleButton
+        label="Continue with Google"
+        userType="customer"
+        storeSlug={slug}
+        redirectTo={redirectTo}
       />
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="mt-1 flex items-center justify-center gap-2 rounded-lg bg-(--color-brand) px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-(--color-brand-dark) disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {isSubmitting ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Logging in…
-          </>
-        ) : (
-          'Continue Shopping'
-        )}
-      </button>
+      <div className="relative flex items-center gap-3">
+        <div className="h-px flex-1 bg-(--color-border)" />
+        <span className="text-xs text-(--color-text-muted)">or continue with email</span>
+        <div className="h-px flex-1 bg-(--color-border)" />
+      </div>
 
-      <p className="text-center text-sm text-(--color-text-muted)">
-        New customer?{' '}
-        <Link
-          href={`/store/${slug}/register?redirect=${encodeURIComponent(redirectTo)}`}
-          className="font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors"
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+        <FormInput
+          label="Email"
+          type="email"
+          placeholder="you@example.com"
+          error={errors.email?.message}
+          {...register('email')}
+        />
+        <FormInput
+          label="Password"
+          type="password"
+          placeholder="Your password"
+          error={errors.password?.message}
+          {...register('password')}
+        />
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="mt-1 flex items-center justify-center gap-2 rounded-lg bg-(--color-brand) px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-(--color-brand-dark) disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Create account
-        </Link>
-      </p>
-    </form>
+          {isSubmitting ? (
+            <><Loader2 className="h-4 w-4 animate-spin" />Logging in…</>
+          ) : (
+            'Continue Shopping'
+          )}
+        </button>
+
+        <p className="text-center text-sm text-(--color-text-muted)">
+          New customer?{' '}
+          <Link
+            href={`/store/${slug}/register?redirect=${encodeURIComponent(redirectTo)}`}
+            className="font-medium text-(--color-brand) hover:text-(--color-brand-dark) transition-colors"
+          >
+            Create account
+          </Link>
+        </p>
+      </form>
+    </div>
   )
 }
