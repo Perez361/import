@@ -11,7 +11,7 @@ export function getDefaultAvatarUrl(seed: string): string {
 
 export async function uploadCustomerAvatar(
   supabase: any,
-  customerId: string,
+  _customerId: string, // kept for backwards compatibility — folder is always auth.uid()
   file: File
 ): Promise<{ url: string | null; error: string | null }> {
   try {
@@ -23,11 +23,16 @@ export async function uploadCustomerAvatar(
       return { url: null, error: 'Image must be under 3 MB' }
     }
 
+    // Get the auth user id — this is what RLS checks against auth.uid()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { url: null, error: 'Not authenticated' }
+
     // Resize + convert to WebP using Canvas
     const resized = await resizeImage(file, 400)
 
     const fileName = `${crypto.randomUUID()}.webp`
-    const path = `${customerId}/${fileName}`
+    // Path MUST start with auth user id so RLS split_part(name,'/',1) = auth.uid() passes
+    const path = `${user.id}/${fileName}`
 
     const arrayBuffer = await resized.arrayBuffer()
     const buffer = new Uint8Array(arrayBuffer)
