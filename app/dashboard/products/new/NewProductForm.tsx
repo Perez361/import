@@ -13,7 +13,6 @@ interface Props {
 
 export default function NewProductForm({ userId }: Props) {
   const router = useRouter()
-  const supabase = createClient()
 
   const [loading, setLoading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -59,13 +58,7 @@ export default function NewProductForm({ userId }: Props) {
     setLoading(true)
 
     try {
-      // Verify session is active
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        toast.error('Your session has expired. Please log in again.')
-        router.push('/login')
-        return
-      }
+      const supabase = createClient()
 
       const fileExt = imageFile.name.split('.').pop() || 'jpg'
       const fileName = `${crypto.randomUUID()}.${fileExt}`
