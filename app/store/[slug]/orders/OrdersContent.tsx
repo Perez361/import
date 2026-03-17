@@ -3,13 +3,20 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
-  Package, ArrowLeft, Clock, Truck, AlertCircle,
-  CheckCircle2, DollarSign, Loader2, ShoppingBag,
+  ArrowLeft, Clock, Truck, AlertCircle, CheckCircle2,
+  DollarSign, Loader2, ShoppingBag, Package, Receipt,
+  ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useStore } from '@/components/store/StoreContext'
 import { toast } from 'sonner'
 import { customerConfirmShippingPaymentAction } from '@/app/dashboard/orders/actions'
+
+interface OrderItem {
+  id: string
+  quantity: number
+  products: { name: string; price: number }
+}
 
 interface Order {
   id: string
@@ -21,43 +28,301 @@ interface Order {
   shipping_note?: string | null
   payment_reference?: string | null
   momo_number?: string | null
-  order_items: {
-    id: string
-    quantity: number
-    products: { name: string; price: number }
-  }[]
+  order_items: OrderItem[]
+}
+
+interface MonthInvoice {
+  key: string   // "2025-03"
+  label: string // "March 2025"
+  orders: Order[]
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  product_paid: 'bg-blue-100 text-blue-700',
-  processing: 'bg-indigo-100 text-indigo-700',
-  arrived: 'bg-purple-100 text-purple-700',
+  pending:         'bg-yellow-100 text-yellow-700',
+  product_paid:    'bg-blue-100 text-blue-700',
+  processing:      'bg-indigo-100 text-indigo-700',
+  arrived:         'bg-purple-100 text-purple-700',
   shipping_billed: 'bg-orange-100 text-orange-700',
-  shipping_paid: 'bg-green-100 text-green-700',
-  delivered: 'bg-emerald-100 text-emerald-700',
-  cancelled: 'bg-red-100 text-red-700',
+  shipping_paid:   'bg-green-100 text-green-700',
+  delivered:       'bg-emerald-100 text-emerald-700',
+  cancelled:       'bg-red-100 text-red-700',
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  pending: 'Pending',
-  product_paid: 'Product Paid',
-  processing: 'Processing',
-  arrived: 'Arrived',
+  pending:         'Pending',
+  product_paid:    'Product Paid',
+  processing:      'Processing',
+  arrived:         'Arrived',
   shipping_billed: 'Shipping Due',
-  shipping_paid: 'Shipping Paid',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
+  shipping_paid:   'Shipping Paid',
+  delivered:       'Delivered',
+  cancelled:       'Cancelled',
 }
+
+function monthKey(d: string) {
+  const dt = new Date(d)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+}
+
+function monthLabel(key: string) {
+  const [y, m] = key.split('-')
+  return new Date(Number(y), Number(m) - 1, 1)
+    .toLocaleDateString('en', { month: 'long', year: 'numeric' })
+}
+
+const fmt = (n: number) => n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
+const nv = (v: any) => parseFloat(String(v || 0)) || 0
+
+// ── Single order card inside invoice ─────────────────────────────────────────
+
+function OrderCard({ order, slug, onUpdate }: {
+  order: Order
+  slug: string
+  onUpdate: (id: string, patch: Partial<Order>) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [form, setForm] = useState({ momoNumber: order.momo_number || '', reference: order.payment_reference || '' })
+  const [paying, setPaying] = useState(false)
+
+  const status = order.status?.toLowerCase() || 'pending'
+  const productTotal = nv(order.total)
+  const shippingFee = nv(order.shipping_fee)
+  const grandTotal = productTotal + shippingFee
+  const needsPayment = status === 'shipping_billed'
+  const paymentSubmitted = status === 'shipping_paid'
+
+  const handlePay = async () => {
+    if (!form.momoNumber || !form.reference) {
+      toast.error('Enter your MoMo number and transaction reference')
+      return
+    }
+    setPaying(true)
+    const result = await customerConfirmShippingPaymentAction(order.id, form.momoNumber, form.reference)
+    setPaying(false)
+    if (result?.error) { toast.error(result.error); return }
+    toast.success('Payment submitted! The importer will verify and deliver your order.')
+    onUpdate(order.id, { status: 'shipping_paid', momo_number: form.momoNumber, payment_reference: form.reference })
+  }
+
+  return (
+    <div className="border border-[var(--color-border)] rounded-xl overflow-hidden bg-[var(--color-card)]">
+      {/* Order summary row */}
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--color-surface)] transition-colors text-left"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center shrink-0">
+            <Package className="h-4 w-4 text-[var(--color-text-muted)]" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[var(--color-text-primary)] font-mono">
+              #{order.id.slice(-8).toUpperCase()}
+            </p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {order.order_items.map(i => `${i.products?.name} ×${i.quantity}`).join(', ')}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="text-right">
+            <p className="text-sm font-bold text-[var(--color-text-primary)] tabular-nums">GH₵{fmt(grandTotal)}</p>
+            {shippingFee > 0 && <p className="text-xs text-orange-600">+GH₵{fmt(shippingFee)} shipping</p>}
+          </div>
+          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLOR[status] || 'bg-gray-100 text-gray-600'}`}>
+            {STATUS_LABEL[status] || status.replace(/_/g, ' ')}
+          </span>
+          {expanded ? <ChevronUp className="h-4 w-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="h-4 w-4 text-[var(--color-text-muted)]" />}
+        </div>
+      </button>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="border-t border-[var(--color-border)] px-4 py-4 space-y-4 bg-[var(--color-surface)]">
+
+          {/* Items breakdown */}
+          <div className="rounded-lg bg-[var(--color-card)] border border-[var(--color-border)] p-3 space-y-2 text-sm">
+            {order.order_items.map((item, i) => (
+              <div key={i} className="flex justify-between">
+                <span className="text-[var(--color-text-primary)]">{item.products?.name} × {item.quantity}</span>
+                <span className="font-semibold tabular-nums">GH₵{fmt(nv(item.products?.price) * item.quantity)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between pt-2 border-t border-[var(--color-border)] font-semibold">
+              <span>Product Total</span>
+              <span className="tabular-nums">GH₵{fmt(productTotal)}</span>
+            </div>
+            {shippingFee > 0 && (
+              <>
+                <div className="flex justify-between text-orange-600 font-semibold">
+                  <span className="flex items-center gap-1"><Truck className="h-3.5 w-3.5" /> Shipping Fee</span>
+                  <span className="tabular-nums">GH₵{fmt(shippingFee)}</span>
+                </div>
+                <div className="flex justify-between font-bold border-t border-[var(--color-border)] pt-2">
+                  <span>Grand Total</span>
+                  <span className="tabular-nums">GH₵{fmt(grandTotal)}</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Shipping payment form */}
+          {needsPayment && (
+            <div className="rounded-xl border-2 border-orange-300 bg-orange-50 p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-bold text-orange-700 text-sm">Shipping fee due — GH₵{fmt(shippingFee)}</p>
+                  <p className="text-xs text-orange-600 mt-0.5">Your items have arrived! Pay the shipping fee via MoMo to receive your order.</p>
+                  {order.shipping_note && (
+                    <p className="text-xs text-gray-700 mt-1 bg-white rounded-lg px-3 py-1.5 border border-orange-200">📝 {order.shipping_note}</p>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Your MoMo Number</label>
+                  <input
+                    type="tel" placeholder="e.g. 0551234567"
+                    value={form.momoNumber}
+                    onChange={(e) => setForm(p => ({ ...p, momoNumber: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-orange-200 bg-white text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">MoMo Transaction Reference</label>
+                  <input
+                    type="text" placeholder="e.g. A123456789"
+                    value={form.reference}
+                    onChange={(e) => setForm(p => ({ ...p, reference: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-orange-200 bg-white text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                  />
+                </div>
+                <button
+                  disabled={paying}
+                  onClick={handlePay}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+                >
+                  {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4" />}
+                  I've Sent the Payment
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Payment submitted */}
+          {paymentSubmitted && (
+            <div className="rounded-xl border border-green-200 bg-green-50 p-3 flex items-start gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-bold text-green-700 text-sm">Payment submitted!</p>
+                <p className="text-xs text-green-600 mt-0.5">Your MoMo payment is being verified. You'll receive your order once confirmed.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Delivered */}
+          {status === 'delivered' && (
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-3 flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-[var(--color-success)]" />
+              <span className="font-semibold text-[var(--color-success)]">Order delivered</span>
+              <span className="ml-auto text-[var(--color-text-muted)] tabular-nums">GH₵{fmt(grandTotal)}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Monthly invoice card ──────────────────────────────────────────────────────
+
+function MonthInvoiceCard({ invoice, slug, onUpdate }: {
+  invoice: MonthInvoice
+  slug: string
+  onUpdate: (orderId: string, patch: Partial<Order>) => void
+}) {
+  const [open, setOpen] = useState(true)
+
+  const totalProducts = invoice.orders.reduce((s, o) => s + nv(o.total), 0)
+  const totalShipping = invoice.orders.reduce((s, o) => s + nv(o.shipping_fee), 0)
+  const grandTotal = totalProducts + totalShipping
+  const hasPendingShipping = invoice.orders.some(o => o.status === 'shipping_billed')
+  const allDelivered = invoice.orders.every(o => o.status === 'delivered')
+
+  return (
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden">
+      {/* Invoice header */}
+      <button
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--color-surface)] transition-colors text-left"
+        onClick={() => setOpen(!open)}
+      >
+        <div className="flex items-center gap-3">
+          <div className={`flex h-10 w-10 items-center justify-center rounded-xl shrink-0 ${
+            allDelivered ? 'bg-[var(--color-success-light)]' : hasPendingShipping ? 'bg-orange-100' : 'bg-[var(--color-brand-light)]'
+          }`}>
+            <Receipt className={`h-5 w-5 ${
+              allDelivered ? 'text-[var(--color-success)]' : hasPendingShipping ? 'text-orange-600' : 'text-[var(--color-brand)]'
+            }`} />
+          </div>
+          <div>
+            <p className="font-bold text-[var(--color-text-primary)]">{invoice.label} Invoice</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {invoice.orders.length} order{invoice.orders.length !== 1 ? 's' : ''} · GH₵{fmt(grandTotal)} total
+              {totalShipping > 0 && ` (incl. GH₵${fmt(totalShipping)} shipping)`}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {hasPendingShipping && (
+            <span className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
+              <AlertCircle className="h-3 w-3" /> Shipping due
+            </span>
+          )}
+          {allDelivered && (
+            <span className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--color-success-light)] text-[var(--color-success)] text-xs font-semibold">
+              <CheckCircle2 className="h-3 w-3" /> Completed
+            </span>
+          )}
+          {open ? <ChevronUp className="h-4 w-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="h-4 w-4 text-[var(--color-text-muted)]" />}
+        </div>
+      </button>
+
+      {/* Orders list */}
+      {open && (
+        <div className="border-t border-[var(--color-border)] p-4 space-y-3">
+          {invoice.orders.map((order) => (
+            <OrderCard key={order.id} order={order} slug={slug} onUpdate={onUpdate} />
+          ))}
+          {/* Invoice totals footer */}
+          <div className="rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] p-3 text-sm space-y-1.5">
+            <div className="flex justify-between text-[var(--color-text-muted)]">
+              <span>Products total</span>
+              <span className="tabular-nums font-medium">GH₵{fmt(totalProducts)}</span>
+            </div>
+            {totalShipping > 0 && (
+              <div className="flex justify-between text-orange-600">
+                <span>Shipping total</span>
+                <span className="tabular-nums font-medium">GH₵{fmt(totalShipping)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold border-t border-[var(--color-border)] pt-1.5">
+              <span>Grand Total</span>
+              <span className="tabular-nums text-[var(--color-success)]">GH₵{fmt(grandTotal)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function OrdersContent({ slug }: { slug: string }) {
   const store = useStore()
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState<Order[]>([])
-  const [paymentForms, setPaymentForms] = useState<
-    Record<string, { momoNumber: string; reference: string }>
-  >({})
-  const [paymentLoading, setPaymentLoading] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     if (store.loading) return
@@ -79,43 +344,32 @@ export default function OrdersContent({ slug }: { slug: string }) {
       `)
       .eq('customer_id', store.customerId)
       .order('created_at', { ascending: false })
-      .then(({ data }: { data: Order[] | null }) => {
+      .then(({ data }: any) => {
         if (cancelled) return
         setOrders(data || [])
         setLoading(false)
       })
-      .catch(() => {
-        if (!cancelled) setLoading(false)
-      })
+      .catch(() => { if (!cancelled) setLoading(false) })
 
     return () => { cancelled = true }
   }, [store.loading, store.customerId])
 
-  const handleConfirmPayment = async (orderId: string) => {
-    const form = paymentForms[orderId]
-    if (!form?.momoNumber || !form?.reference) {
-      toast.error('Please enter your MoMo number and payment reference')
-      return
-    }
-    setPaymentLoading((p) => ({ ...p, [orderId]: true }))
-    const result = await customerConfirmShippingPaymentAction(
-      orderId, form.momoNumber, form.reference
-    )
-    setPaymentLoading((p) => ({ ...p, [orderId]: false }))
-    if (result?.error) {
-      toast.error(result.error)
-    } else {
-      toast.success('Payment confirmed! The importer will verify and release your order.')
-      setOrders((prev) =>
-        prev.map((o) => o.id === orderId ? { ...o, status: 'shipping_paid' } : o)
-      )
-    }
+  const updateOrder = (id: string, patch: Partial<Order>) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o))
   }
 
-  const fmt = (n: number) => n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
-  const n = (v: any) => parseFloat(String(v || 0)) || 0
+  // Group orders by month
+  const invoiceMap = new Map<string, MonthInvoice>()
+  for (const order of orders) {
+    const key = monthKey(order.created_at)
+    if (!invoiceMap.has(key)) {
+      invoiceMap.set(key, { key, label: monthLabel(key), orders: [] })
+    }
+    invoiceMap.get(key)!.orders.push(order)
+  }
+  const invoices = Array.from(invoiceMap.values())
 
-  // ── Auth guard ──────────────────────────────────────────────────────────────
+  // Auth guard
   if (!store.loading && !store.customerId) {
     if (typeof window !== 'undefined') {
       window.location.href = `/store/${slug}/login?redirect=/store/${slug}/orders`
@@ -141,185 +395,35 @@ export default function OrdersContent({ slug }: { slug: string }) {
       <div className="bg-white shadow-sm">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5">
           <div className="flex items-center gap-3">
-            <Link
-              href={`/store/${slug}`}
-              className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-            >
+            <Link href={`/store/${slug}`} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
               <ArrowLeft className="h-5 w-5 text-gray-700" />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-gray-900">My Orders</h1>
-              <p className="text-sm text-gray-500">
-                {orders.length} order{orders.length !== 1 ? 's' : ''}
-              </p>
+              <p className="text-sm text-gray-500">{invoices.length} invoice{invoices.length !== 1 ? 's' : ''} · {orders.length} order{orders.length !== 1 ? 's' : ''}</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-4">
-        {orders.length === 0 ? (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+        {invoices.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
             <ShoppingBag className="h-12 w-12 text-gray-200 mx-auto mb-3" />
             <p className="text-gray-500 font-medium">No orders yet</p>
-            <Link
-              href={`/store/${slug}`}
-              className="mt-3 inline-block text-blue-600 hover:text-blue-700 font-medium text-sm"
-            >
+            <Link href={`/store/${slug}`} className="mt-3 inline-block text-blue-600 font-medium text-sm">
               Start shopping →
             </Link>
           </div>
         ) : (
-          orders.map((order) => {
-            const status = order.status?.toLowerCase() || 'pending'
-            const productTotal = n(order.total)
-            const shippingFee = n(order.shipping_fee)
-            const grandTotal = productTotal + shippingFee
-            const needsPayment = status === 'shipping_billed'
-            const paymentConfirmed = status === 'shipping_paid'
-            const form = paymentForms[order.id] || { momoNumber: '', reference: '' }
-
-            return (
-              <div key={order.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                {/* Order header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                  <div>
-                    <p className="font-bold text-gray-900 font-mono text-sm">
-                      #{order.id.slice(-8).toUpperCase()}
-                    </p>
-                    <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                      <Clock className="h-3 w-3" />
-                      {new Date(order.created_at).toLocaleDateString('en', {
-                        year: 'numeric', month: 'long', day: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_COLOR[status] || 'bg-gray-100 text-gray-600'}`}
-                  >
-                    {STATUS_LABEL[status] || status.replace(/_/g, ' ')}
-                  </span>
-                </div>
-
-                <div className="p-5 space-y-4">
-                  {/* Items */}
-                  <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-                    {order.order_items?.map((item, i) => (
-                      <div key={i} className="flex justify-between text-sm">
-                        <span className="text-gray-700">
-                          {item.products?.name} × {item.quantity}
-                        </span>
-                        <span className="font-medium">
-                          GH₵{fmt(n(item.products?.price) * item.quantity)}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
-                      <span className="font-medium text-gray-700">Product Total</span>
-                      <span className="font-bold">GH₵{fmt(productTotal)}</span>
-                    </div>
-                    {shippingFee > 0 && (
-                      <>
-                        <div className="flex justify-between text-sm">
-                          <span className="font-medium text-orange-600 flex items-center gap-1">
-                            <Truck className="h-3 w-3" /> Shipping Fee
-                          </span>
-                          <span className="font-bold text-orange-600">GH₵{fmt(shippingFee)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm pt-1 border-t border-gray-200">
-                          <span className="font-bold text-gray-900">Grand Total</span>
-                          <span className="font-bold text-gray-900">GH₵{fmt(grandTotal)}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Shipping payment form */}
-                  {needsPayment && (
-                    <div className="rounded-xl border-2 border-orange-300 bg-orange-50 p-4 space-y-4">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />
-                        <div>
-                          <p className="font-bold text-orange-700 text-sm">
-                            Shipping fee due — GH₵{fmt(shippingFee)}
-                          </p>
-                          <p className="text-xs text-orange-600 mt-0.5">
-                            Your items have arrived! Pay the shipping fee via MoMo to receive your order.
-                          </p>
-                          {order.shipping_note && (
-                            <p className="text-xs text-gray-600 mt-1 bg-white rounded-lg px-3 py-1.5">
-                              📝 {order.shipping_note}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="text-xs font-medium text-gray-700 mb-1 block">
-                            Your MoMo Number
-                          </label>
-                          <input
-                            type="tel"
-                            placeholder="e.g. 0551234567"
-                            value={form.momoNumber}
-                            onChange={(e) =>
-                              setPaymentForms((p) => ({
-                                ...p,
-                                [order.id]: { ...form, momoNumber: e.target.value },
-                              }))
-                            }
-                            className="w-full px-3 py-2 rounded-lg border border-orange-300 bg-white text-sm focus:ring-2 focus:ring-orange-400 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-gray-700 mb-1 block">
-                            MoMo Transaction Reference
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. A123456789"
-                            value={form.reference}
-                            onChange={(e) =>
-                              setPaymentForms((p) => ({
-                                ...p,
-                                [order.id]: { ...form, reference: e.target.value },
-                              }))
-                            }
-                            className="w-full px-3 py-2 rounded-lg border border-orange-300 bg-white text-sm focus:ring-2 focus:ring-orange-400 focus:border-transparent"
-                          />
-                        </div>
-                        <button
-                          disabled={paymentLoading[order.id]}
-                          onClick={() => handleConfirmPayment(order.id)}
-                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-all disabled:opacity-50"
-                        >
-                          {paymentLoading[order.id] ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <DollarSign className="h-4 w-4" />
-                          )}
-                          I've Sent the Payment
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Payment confirmed */}
-                  {paymentConfirmed && (
-                    <div className="rounded-xl border border-green-300 bg-green-50 p-4 flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                      <div>
-                        <p className="font-bold text-green-700 text-sm">Payment submitted!</p>
-                        <p className="text-xs text-green-600 mt-0.5">
-                          Your MoMo payment is being verified. You'll receive your order once confirmed.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })
+          invoices.map((invoice) => (
+            <MonthInvoiceCard
+              key={invoice.key}
+              invoice={invoice}
+              slug={slug}
+              onUpdate={updateOrder}
+            />
+          ))
         )}
       </div>
     </div>

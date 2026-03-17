@@ -80,7 +80,21 @@ export async function addShipmentItemAction(
   })
 
   if (error) return { error: error.message }
+
+  // Auto-sync: when a shipment item is linked to a product, update that
+  // product's tracking_number so Products page and Pre-orders stay in sync
+  const withProduct = items.filter((i) => i.product_id && i.tracking_number)
+  for (const item of withProduct) {
+    await supabase
+      .from('products')
+      .update({ tracking_number: item.tracking_number.trim().toUpperCase() })
+      .eq('id', item.product_id!)
+      .eq('importer_id', user.id)
+  }
+
   revalidatePath(`/dashboard/shipments/${batchId}`)
+  revalidatePath('/dashboard/products')
+  revalidatePath('/dashboard/pre-orders')
   return { success: true }
 }
 
