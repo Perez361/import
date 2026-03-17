@@ -54,6 +54,14 @@ export default async function PreOrderMonthPage({
     .order('created_at', { ascending: false })
 
   if (error) console.error('Pre-order month fetch error:', error)
+  console.log('Pre-orders debug:', {
+    userId: user.id,
+    month,
+    startDate,
+    endDate,
+    orderCount: orders?.length,
+    firstOrder: orders?.[0],
+  })
 
   // Group by product
   const productMap = new Map<string, ProductGroup>()
