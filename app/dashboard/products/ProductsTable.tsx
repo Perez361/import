@@ -2,11 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Package, Image, Edit3, Trash2, Loader2, Hash, Check, X } from 'lucide-react'
+import { Package, Edit3, Trash2, Loader2, Hash, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { deleteProductAction } from './actions'
-
 
 interface Product {
   id: string
@@ -152,9 +151,9 @@ export default function ProductsTable({ initialProducts }: ProductsTableProps) {
               {/* Product */}
               <td className="px-6 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-muted)] overflow-hidden shrink-0">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-surface)] overflow-hidden shrink-0 border border-[var(--color-border)]">
                     {product.image_url
-                      ? <Image className="h-5 w-5 text-[var(--color-text-muted)]" />
+                      ? <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
                       : <Package className="h-5 w-5 text-[var(--color-text-muted)]" />}
                   </div>
                   <div>
