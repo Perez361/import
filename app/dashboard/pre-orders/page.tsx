@@ -57,30 +57,43 @@ export default async function PreOrdersPage({
   const supabase = await createClient()
   const params = await searchParams
 
-  // Fetch all active (non-delivered, non-cancelled) order items with full joins
-  const { data: orderItems } = await supabase
-    .from('order_items')
+  // Fetch all orders for this store with nested items + customers in one query
+  const { data: allOrders, error: ordersError } = await supabase
+    .from('orders')
     .select(`
-      id, quantity, price,
-      products ( id, name, price, tracking_number, supplier_name ),
-      orders (
-        id, status, created_at, total, shipping_fee,
-        customers ( id, full_name, username, contact, location )
+      id, status, created_at, total, shipping_fee,
+      customers ( id, full_name, username, contact, location ),
+      order_items (
+        id, quantity, price,
+        products ( id, name, tracking_number, supplier_name )
       )
     `)
-    .in(
-      'order_id',
-      (
-        await supabase
-          .from('orders')
-          .select('id')
-          .eq('store_id', user.id)
-          .not('status', 'in', '("delivered","cancelled")')
-      ).data?.map((o) => o.id) || []
-    )
-    .order('created_at', { referencedTable: 'orders', ascending: false })
+    .eq('store_id', user.id)
+    .order('created_at', { ascending: false })
 
-  const items = (orderItems || []) as any[]
+  if (ordersError) console.error('Pre-orders fetch error:', ordersError)
+
+  // Flatten to item-level rows for the grouping logic below
+  const items: any[] = []
+  for (const order of allOrders || []) {
+    const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers
+    for (const item of (order.order_items || [])) {
+      items.push({
+        id: item.id,
+        quantity: item.quantity,
+        price: item.price,
+        products: item.products,
+        orders: {
+          id: order.id,
+          status: order.status,
+          created_at: order.created_at,
+          total: order.total,
+          shipping_fee: order.shipping_fee,
+          customers: customer,
+        },
+      })
+    }
+  }
 
   // ── Build month → product → customers map ────────────────────────────────
 
