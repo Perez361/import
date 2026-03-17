@@ -22,6 +22,7 @@ interface CartContextType {
   addToCart: (productId: string) => Promise<void>
   updateQuantity: (cartItemId: string, quantity: number) => Promise<void>
   removeFromCart: (cartItemId: string) => Promise<void>
+  clearCart: () => Promise<void>
   customerId: string | null
   storeId: string | null
   loading: boolean
@@ -105,7 +106,6 @@ export function CartProvider({
 
     const supabase = createClient()
     try {
-      // Upsert cart item client-side
       const { data: cart } = await supabase
         .from('carts')
         .select('id')
@@ -114,7 +114,7 @@ export function CartProvider({
         .single()
 
       if (!cart) {
-        const { data: newCart } = await supabase
+        await supabase
           .from('carts')
           .insert({ customer_id: store.customerId!, store_id: store.storeId! })
           .select('id')
@@ -129,7 +129,6 @@ export function CartProvider({
           quantity: 1 
         }, { onConflict: 'cart_id,product_id' })
       
-      // Refresh cart data locally instead of full page reload
       const { data: updatedCart } = await supabase
         .from('carts')
         .select(`
@@ -160,68 +159,86 @@ export function CartProvider({
           }
         }))
         setCartItems(items)
-       setCartCount(items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0))
+        setCartCount(items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0))
       }
     } catch (error) {
       console.error('Add to cart error:', error)
     }
   }
 
- const updateQuantity = async (cartItemId: string, quantity: number) => {
-  if (!store.customerId || !store.storeId) return
+  const updateQuantity = async (cartItemId: string, quantity: number) => {
+    if (!store.customerId || !store.storeId) return
 
-  // Optimistic update first
-  if (quantity <= 0) {
+    if (quantity <= 0) {
+      setCartItems(prev => {
+        const updated = prev.filter(item => item.id !== cartItemId)
+        setCartCount(updated.reduce((sum, item) => sum + item.quantity, 0))
+        return updated
+      })
+    } else {
+      setCartItems(prev => {
+        const updated = prev.map(item =>
+          item.id === cartItemId ? { ...item, quantity } : item
+        )
+        setCartCount(updated.reduce((sum, item) => sum + item.quantity, 0))
+        return updated
+      })
+    }
+
+    const supabase = createClient()
+    try {
+      if (quantity <= 0) {
+        await supabase.from('cart_items').delete().eq('id', cartItemId)
+      } else {
+        await supabase.from('cart_items').update({ quantity }).eq('id', cartItemId)
+      }
+    } catch (error) {
+      console.error('Update quantity sync error:', error)
+      loadCart()
+    }
+  }
+
+  const removeFromCart = async (cartItemId: string) => {
+    if (!store.customerId || !store.storeId) return
+
     setCartItems(prev => {
       const updated = prev.filter(item => item.id !== cartItemId)
       setCartCount(updated.reduce((sum, item) => sum + item.quantity, 0))
       return updated
     })
-  } else {
-    setCartItems(prev => {
-      const updated = prev.map(item =>
-        item.id === cartItemId ? { ...item, quantity } : item
-      )
-      setCartCount(updated.reduce((sum, item) => sum + item.quantity, 0))
-      return updated
-    })
-  }
 
-  // Then sync to Supabase in background
-  const supabase = createClient()
-  try {
-    if (quantity <= 0) {
+    const supabase = createClient()
+    try {
       await supabase.from('cart_items').delete().eq('id', cartItemId)
-    } else {
-      await supabase.from('cart_items').update({ quantity }).eq('id', cartItemId)
+    } catch (error) {
+      console.error('Remove from cart sync error:', error)
+      loadCart()
     }
-  } catch (error) {
-    console.error('Update quantity sync error:', error)
-    // Reload cart to restore correct state if sync failed
-    loadCart()
   }
-}
 
-  const removeFromCart = async (cartItemId: string) => {
-  if (!store.customerId || !store.storeId) return
+  const clearCart = async () => {
+    if (!store.customerId) return
 
-  // Optimistic update first
-  setCartItems(prev => {
-    const updated = prev.filter(item => item.id !== cartItemId)
-    setCartCount(updated.reduce((sum, item) => sum + item.quantity, 0))
-    return updated
-  })
+    // Optimistic update immediately so UI clears instantly
+    setCartItems([])
+    setCartCount(0)
 
-  // Then sync to Supabase in background
-  const supabase = createClient()
-  try {
-    await supabase.from('cart_items').delete().eq('id', cartItemId)
-  } catch (error) {
-    console.error('Remove from cart sync error:', error)
-    // Reload cart to restore correct state if sync failed
-    loadCart()
+    const supabase = createClient()
+    try {
+      const { data: cart } = await supabase
+        .from('carts')
+        .select('id')
+        .eq('customer_id', store.customerId)
+        .single()
+
+      if (cart?.id) {
+        await supabase.from('cart_items').delete().eq('cart_id', cart.id)
+      }
+    } catch (error) {
+      console.error('Clear cart error:', error)
+      loadCart()
+    }
   }
-}
 
   const value = {
     cartCount,
@@ -229,6 +246,7 @@ export function CartProvider({
     addToCart,
     updateQuantity,
     removeFromCart,
+    clearCart,
     customerId: store.customerId || null,
     storeId: store.storeId || null,
     loading

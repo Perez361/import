@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { Package, Phone, MapPin, ShoppingCart, User, LogOut, Plus, X, Trash2 } from 'lucide-react'
 import Link from 'next/link'
-import Image from 'next/image'
+
 import { useCart } from '@/components/store/CartContext'
 import { useStore } from '@/components/store/StoreContext'
 import { createClient } from '@/lib/supabase/client'
@@ -39,7 +39,7 @@ function ProductCard({ product, slug }: { product: Product; slug: string }) {
     <div className="group bg-white rounded-2xl border border-gray-200 hover:shadow-lg hover:border-gray-300 transition-all overflow-hidden">
       <div className="relative h-44 sm:h-52 bg-gradient-to-br from-blue-50 to-purple-50 overflow-hidden">
         {product.image_url ? (
-          <Image src={product.image_url} alt={product.name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
+          <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Package className="h-14 w-14 text-gray-300" />
@@ -119,6 +119,13 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
               {isLoggedIn && customerName ? (
                 <>
                   <Link
+                    href={`/store/${slug}/orders`}
+                    className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors"
+                    title="My Orders"
+                  >
+                    <Package className="h-5 w-5 text-gray-600" />
+                  </Link>
+                  <Link
                     href={`/store/${slug}/profile`}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
                   >
@@ -195,7 +202,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
 
 function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
   const store = useStore()
-  const { cartItems, cartCount, updateQuantity, removeFromCart } = useCart()
+  const { cartItems, cartCount, updateQuantity, removeFromCart, clearCart } = useCart()
   const total = cartItems.reduce((s, i) => s + i.quantity * i.products.price, 0)
   const fmt = (n: number) => n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
 
@@ -211,8 +218,13 @@ function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
       total,
       status: 'pending',
     })
-    if (error) toast.error('Failed to place order')
-    else { toast.success('Order placed!'); onClose() }
+    if (error) {
+      toast.error('Failed to place order')
+    } else {
+      clearCart()
+      toast.success('Order placed!')
+      onClose()
+    }
   }
 
   return (
