@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { deleteProductAction } from './actions'
 
+
 interface Product {
   id: string
   name: string
