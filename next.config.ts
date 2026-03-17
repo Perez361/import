@@ -8,19 +8,29 @@ const nextConfig: NextConfig = {
         hostname: 'wosxriwvumvwnjeoeoev.supabase.co',
         pathname: '/storage/v1/object/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+      {
+        // Allow any future CDN / image host used in product uploads
+        protocol: 'https',
+        hostname: '**.supabase.co',
+        pathname: '/storage/v1/object/**',
+      },
+      {
+        // DiceBear default avatars
+        protocol: 'https',
+        hostname: 'api.dicebear.com',
+      },
     ],
   },
   experimental: {
     staleTimes: {
-      // Keep dynamic at 0 (default) so client-side router cache never serves
-      // a stale auth redirect after login. Setting this > 0 causes the
-      // unauthenticated /dashboard → /login redirect to be replayed from
-      // the cache even after a successful login.
       dynamic: 0,
       static: 180,
     },
   },
-  // generateStaticParams: false, // not valid NextConfig property
   headers: async () => [
     {
       source: '/(.*)',

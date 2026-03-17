@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft, Save, User, Edit2, MapPin, Phone,
-  Loader2, Package, Clock, ChevronRight,
+  Loader2, Package, Clock, ChevronRight, Camera, X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useStore } from '@/components/store/StoreContext'
+import { uploadCustomerAvatar } from '@/lib/avatar'
 import { toast } from 'sonner'
 
 interface OrderSummary {
@@ -51,6 +52,10 @@ export default function ProfileContent({ slug }: { slug: string }) {
   const [formData, setFormData] = useState({
     full_name: '', username: '', contact: '', location: '', shipping_address: '',
   })
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     // Wait for auth to resolve
@@ -83,6 +88,7 @@ export default function ProfileContent({ slug }: { slug: string }) {
         if (customer) {
           setProfile(customer)
           setEmail(user?.email || '')
+          setAvatarPreview(customer.avatar_url || null)
           setFormData({
             full_name: customer.full_name || '',
             username: customer.username || '',
@@ -103,6 +109,39 @@ export default function ProfileContent({ slug }: { slug: string }) {
 
     return () => { cancelled = true }
   }, [store.loading, store.customerId])
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { toast.error('Please select an image file'); return }
+    if (file.size > 3 * 1024 * 1024) { toast.error('Image must be under 3 MB'); return }
+
+    setAvatarFile(file)
+    setAvatarPreview(URL.createObjectURL(file))
+    setAvatarUploading(true)
+
+    const supabase = createClient()
+    const { url, error } = await uploadCustomerAvatar(supabase, store.customerId!, file)
+    if (error || !url) {
+      toast.error('Avatar upload failed: ' + (error || 'unknown error'))
+      setAvatarUploading(false)
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from('customers')
+      .update({ avatar_url: url })
+      .eq('id', store.customerId!)
+
+    setAvatarUploading(false)
+    if (updateError) {
+      toast.error('Failed to save avatar')
+    } else {
+      setAvatarPreview(url)
+      setProfile((prev: any) => ({ ...prev, avatar_url: url }))
+      toast.success('Profile photo updated!')
+    }
+  }
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -165,8 +204,30 @@ export default function ProfileContent({ slug }: { slug: string }) {
             {/* Avatar + name + edit button */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-4">
-                <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
-                  <User className="h-8 w-8 text-blue-600" />
+                <div className="relative shrink-0">
+                  <div
+                    className="h-16 w-16 rounded-full overflow-hidden bg-blue-100 flex items-center justify-center cursor-pointer"
+                    onClick={() => avatarInputRef.current?.click()}
+                  >
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="h-8 w-8 text-blue-400" />
+                    )}
+                    {avatarUploading && (
+                      <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
+                        <Loader2 className="h-5 w-5 animate-spin text-white" />
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="absolute bottom-0 right-0 h-6 w-6 bg-blue-600 rounded-full flex items-center justify-center border-2 border-white shadow-md hover:bg-blue-700 transition-colors"
+                  >
+                    <Camera className="h-3 w-3 text-white" />
+                  </button>
+                  <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-gray-900">

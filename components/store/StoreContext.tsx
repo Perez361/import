@@ -10,6 +10,7 @@ interface StoreContextType {
   customerId: string | null
   storeId: string | null
   customerName: string
+  customerAvatar: string | null   // ← NEW: avatar_url from customers table
   isLoggedIn: boolean
   loading: boolean
   refetchCustomer: () => Promise<void>
@@ -30,6 +31,7 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
   const [customerId, setCustomerId] = useState<string | null>(initialCustomer?.id ?? null)
   const [storeId, setStoreId] = useState<string | null>(initialCustomer?.storeId ?? null)
   const [customerName, setCustomerName] = useState(initialCustomer?.name ?? '')
+  const [customerAvatar, setCustomerAvatar] = useState<string | null>(initialCustomer?.avatar ?? null)
   const [isLoggedIn, setIsLoggedIn] = useState(!!initialCustomer)
   const [loading, setLoading] = useState(!initialCustomer)
   const isFetchingRef = useRef(false)
@@ -38,13 +40,13 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
     if (isFetchingRef.current) return
     isFetchingRef.current = true
     try {
-      // Use the customer-specific client — completely isolated from importer sessions
       const supabase = createCustomerClient(currentSlug)
       const { data: { user }, error: userError } = await supabase.auth.getUser()
 
       if (userError || !user) {
         setIsLoggedIn(false)
         setCustomerName('')
+        setCustomerAvatar(null)
         setCustomerId(null)
         setStoreId(null)
         return
@@ -60,7 +62,7 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
 
       const { data: customer } = await supabase
         .from('customers')
-        .select('id, store_id, full_name, username')
+        .select('id, store_id, full_name, username, avatar_url')
         .eq('user_id', user.id)
         .eq('store_id', importer.id)
         .single()
@@ -69,10 +71,12 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
         setCustomerId(customer.id)
         setStoreId(customer.store_id)
         setCustomerName(customer.full_name || customer.username || '')
+        setCustomerAvatar(customer.avatar_url ?? null)
         setIsLoggedIn(true)
       } else {
         setIsLoggedIn(false)
         setCustomerName('')
+        setCustomerAvatar(null)
         setCustomerId(null)
         setStoreId(null)
       }
@@ -99,8 +103,6 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
 
   useEffect(() => {
     if (!slug) return
-    // Subscribe using the customer-specific client so we only react to
-    // customer auth events — never to the importer signing in/out
     const supabase = createCustomerClient(slug)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -108,6 +110,7 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
         if (event === 'SIGNED_OUT') {
           setIsLoggedIn(false)
           setCustomerName('')
+          setCustomerAvatar(null)
           setCustomerId(null)
           setStoreId(null)
         } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
@@ -128,6 +131,7 @@ export function StoreProvider({ children, initialSlug, initialCustomer }: StoreP
       customerId,
       storeId,
       customerName,
+      customerAvatar,
       isLoggedIn,
       loading,
       refetchCustomer: () => fetchCustomer(slug || '')

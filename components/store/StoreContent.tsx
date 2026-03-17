@@ -113,7 +113,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
     )
   }
 
-  const { isLoggedIn, customerName } = store
+  const { isLoggedIn, customerName, customerAvatar } = store
 
   return (
     <div className="min-h-screen bg-gray-50 pb-6">
@@ -141,9 +141,14 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                   {/* Profile pill */}
                   <Link
                     href={`/store/${slug}/profile`}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+                    className="flex items-center gap-1.5 px-2 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
                   >
-                    <User className="h-4 w-4 shrink-0" />
+                    <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center text-[11px] font-bold text-blue-700 shrink-0 overflow-hidden">
+                      {customerAvatar
+                        ? <img src={customerAvatar} alt={customerName} className="w-full h-full object-cover" />
+                        : (customerName?.charAt(0).toUpperCase() || <User className="h-3.5 w-3.5" />)
+                      }
+                    </div>
                     <span className="hidden sm:block max-w-[100px] truncate">{customerName}</span>
                   </Link>
 

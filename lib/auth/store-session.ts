@@ -4,6 +4,7 @@ export type InitialCustomer = {
   id: string
   storeId: string
   name: string
+  avatar: string | null   // ← NEW
 } | null
 
 /**
@@ -14,7 +15,6 @@ export async function getCustomerForStore(slug: string): Promise<InitialCustomer
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  // Inline importer fetch
   const { data: importer } = await supabase
     .from('importers')
     .select('id')
@@ -22,10 +22,9 @@ export async function getCustomerForStore(slug: string): Promise<InitialCustomer
     .single()
   if (!importer) return null
 
-  // Get customer for this user + store
   const { data: customer } = await supabase
     .from('customers')
-    .select('id, store_id, full_name, username')
+    .select('id, store_id, full_name, username, avatar_url')
     .eq('user_id', user.id)
     .eq('store_id', importer.id)
     .single()
@@ -35,7 +34,7 @@ export async function getCustomerForStore(slug: string): Promise<InitialCustomer
   return {
     id: customer.id,
     storeId: customer.store_id,
-    name: customer.full_name || customer.username || ''
+    name: customer.full_name || customer.username || '',
+    avatar: customer.avatar_url ?? null,
   }
 }
-
