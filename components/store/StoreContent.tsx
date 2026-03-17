@@ -161,13 +161,27 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                     )}
                   </Link>
 
-                  {/* Logout */}
+                  {/* Cart */}
+                  <button
+                    onClick={() => setShowCart(true)}
+                    className="relative p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"
+                  >
+                    <ShoppingCart className="h-5 w-5 text-gray-700" />
+                    {cartCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        {cartCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Divider + Logout — isolated on the right */}
+                  <div className="w-px h-6 bg-gray-200 mx-1.5" />
                   <button
                     onClick={handleLogout}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                     title="Logout"
                   >
-                    <LogOut className="h-4 w-4 text-gray-400" />
+                    <LogOut className="h-4 w-4" />
                   </button>
                 </>
               ) : (
@@ -180,19 +194,6 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                   </Link>
                 </>
               )}
-
-              {/* Cart */}
-              <button
-                onClick={() => setShowCart(true)}
-                className="relative p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors ml-0.5"
-              >
-                <ShoppingCart className="h-5 w-5 text-gray-700" />
-                {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                    {cartCount}
-                  </span>
-                )}
-              </button>
             </div>
           </div>
 
