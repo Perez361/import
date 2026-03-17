@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { Package, Phone, MapPin, ShoppingCart, User, LogOut, Plus, X, Trash2 } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { Package, Phone, MapPin, ShoppingCart, User, LogOut, CheckCircle2, Plus, X, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 
 import { useCart } from '@/components/store/CartContext'
@@ -81,6 +81,19 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
   const { cartCount } = useCart()
   const store = useStore()
   const [showCart, setShowCart] = useState(false)
+  const [pendingOrderCount, setPendingOrderCount] = useState(0)
+
+  // Fetch orders awaiting shipping payment from customer
+  useEffect(() => {
+    if (!store.customerId) { setPendingOrderCount(0); return }
+    const supabase = createClient()
+    supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_id', store.customerId)
+      .eq('status', 'shipping_billed')
+      .then(({ count }: { count: number | null }) => setPendingOrderCount(count || 0))
+  }, [store.customerId])
 
   const handleLogout = useCallback(async () => {
     try {
@@ -125,22 +138,36 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
             <div className="flex items-center gap-1.5 shrink-0">
               {isLoggedIn && customerName ? (
                 <>
+                  {/* Profile pill */}
+                  <Link
+                    href={`/store/${slug}/profile`}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+                  >
+                    <User className="h-4 w-4 shrink-0" />
+                    <span className="hidden sm:block max-w-[100px] truncate">{customerName}</span>
+                  </Link>
+
+                  {/* My Orders icon — badge if shipping payment due */}
                   <Link
                     href={`/store/${slug}/orders`}
                     className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors"
                     title="My Orders"
                   >
                     <Package className="h-5 w-5 text-gray-600" />
+                    {pendingOrderCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5 animate-pulse">
+                        {pendingOrderCount}
+                      </span>
+                    )}
                   </Link>
-                  <Link
-                    href={`/store/${slug}/profile`}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+
+                  {/* Logout */}
+                  <button
+                    onClick={handleLogout}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                    title="Logout"
                   >
-                    <User className="h-4 w-4" />
-                    <span className="hidden sm:block max-w-[100px] truncate">{customerName}</span>
-                  </Link>
-                  <button onClick={handleLogout} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" title="Logout">
-                    <LogOut className="h-4 w-4 text-gray-500" />
+                    <LogOut className="h-4 w-4 text-gray-400" />
                   </button>
                 </>
               ) : (
@@ -154,6 +181,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                 </>
               )}
 
+              {/* Cart */}
               <button
                 onClick={() => setShowCart(true)}
                 className="relative p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors ml-0.5"
@@ -210,6 +238,8 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
 function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
   const store = useStore()
   const { cartItems, cartCount, updateQuantity, removeFromCart, clearCart } = useCart()
+  const [orderPlaced, setOrderPlaced] = useState(false)
+  const [placing, setPlacing] = useState(false)
   const total = cartItems.reduce((s, i) => s + i.quantity * i.products.price, 0)
   const fmt = (n: number) => n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
 
@@ -218,6 +248,7 @@ function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
       window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
       return
     }
+    setPlacing(true)
     const supabase = createClient()
     const { error } = await supabase.from('orders').insert({
       customer_id: store.customerId,
@@ -225,12 +256,12 @@ function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
       total,
       status: 'pending',
     })
+    setPlacing(false)
     if (error) {
       toast.error('Failed to place order')
     } else {
       clearCart()
-      toast.success('Order placed!')
-      onClose()
+      setOrderPlaced(true)
     }
   }
 
@@ -239,6 +270,53 @@ function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative w-full max-w-[360px] bg-white h-full shadow-2xl flex flex-col">
 
+        {/* ── Order placed success screen ── */}
+        {orderPlaced ? (
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">Order Placed!</h2>
+              <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-5">
+              <div className="h-20 w-20 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle2 className="h-10 w-10 text-green-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Your order is confirmed!</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  The importer will process your order and ship your items. Once your items arrive,
+                  you'll need to <span className="font-semibold text-orange-600">pay the shipping fee</span> before delivery.
+                </p>
+              </div>
+              <div className="w-full bg-orange-50 border border-orange-200 rounded-xl p-4 text-left">
+                <p className="text-xs font-bold text-orange-700 uppercase tracking-wide mb-1">What happens next?</p>
+                <ol className="text-sm text-orange-800 space-y-1.5 list-none">
+                  <li className="flex items-start gap-2"><span className="font-bold shrink-0">1.</span>Importer orders your items from supplier</li>
+                  <li className="flex items-start gap-2"><span className="font-bold shrink-0">2.</span>Items arrive — shipping fee is billed</li>
+                  <li className="flex items-start gap-2"><span className="font-bold shrink-0 text-orange-600">3.</span><span>You pay via MoMo — <span className="font-semibold">check the 📦 Orders icon</span> in the menu</span></li>
+                  <li className="flex items-start gap-2"><span className="font-bold shrink-0">4.</span>Importer verifies and delivers your order</li>
+                </ol>
+              </div>
+              <Link
+                href={`/store/${slug}/orders`}
+                onClick={onClose}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
+              >
+                <Package className="h-4 w-4" />
+                Track My Order
+              </Link>
+              <button
+                onClick={onClose}
+                className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Continue shopping
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <div>
             <h2 className="text-base font-bold text-gray-900">Shopping Cart</h2>
@@ -291,13 +369,21 @@ function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
               <span className="font-semibold text-gray-900">Total</span>
               <span className="text-xl font-bold text-blue-600 tabular-nums">GH₵{fmt(total)}</span>
             </div>
+            <p className="text-xs text-gray-400 mb-3 text-center">
+              Shipping fee will be added once your items arrive
+            </p>
             <button
               onClick={handleCheckout}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors text-sm active:scale-98"
+              disabled={placing}
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold rounded-xl transition-colors text-sm active:scale-98 flex items-center justify-center gap-2"
             >
-              Place Order
+              {placing ? (
+                <><div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Placing order…</>
+              ) : 'Place Order'}
             </button>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>
