@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
   Home, Package, ShoppingCart, Users, Truck,
-  Store, TrendingUp, Settings, LogOut, BarChart2, ClipboardCheck,
+  Store, Settings, LogOut, BarChart2, ClipboardCheck,
 } from 'lucide-react'
 import { logoutAction } from '@/lib/actions'
 
@@ -28,8 +28,7 @@ export default function Sidebar({ businessName }: SidebarProps) {
     { href: '/dashboard/customers', label: 'Customers', icon: Users },
     { href: '/dashboard/shipments', label: 'Shipments', icon: Truck },
     { href: '/dashboard/storefront', label: 'My Store', icon: Store },
-    { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart2 },
-    { href: '/dashboard/finances', label: 'Finances', icon: TrendingUp },
+    { href: '/dashboard/analytics', label: 'Analytics & Finances', icon: BarChart2 },
     { href: '/dashboard/settings', label: 'Settings', icon: Settings },
   ]
 

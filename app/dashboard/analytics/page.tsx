@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import dynamic from 'next/dynamic'
 
 export const metadata = {
-  title: 'Analytics – ImportFlow PRO',
+  title: 'Analytics & Finances – ImportFlow PRO',
 }
 
 const AnalyticsDashboard = dynamic(() => import('./AnalyticsDashboard'), {
@@ -50,6 +50,7 @@ export default async function AnalyticsPage({
     { data: customers },
     { data: prevCustomers },
     { data: products },
+    { data: allTimeOrders },
   ] = await Promise.all([
     supabase
       .from('orders')
@@ -83,6 +84,10 @@ export default async function AnalyticsPage({
       .from('products')
       .select('id, name, price')
       .eq('importer_id', importerId),
+    supabase
+      .from('orders')
+      .select('total, shipping_fee')
+      .eq('store_id', importerId),
   ])
 
   const currentOrderIds = (orders || []).map((o) => o.id)
@@ -92,6 +97,9 @@ export default async function AnalyticsPage({
         .select('product_id, quantity, price, order_id')
         .in('order_id', currentOrderIds)
     : { data: [] }
+
+  const n = (v: any) => parseFloat(String(v || 0)) || 0
+  const allTimeRevenue = (allTimeOrders || []).reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
 
   return (
     <AnalyticsDashboard
@@ -103,6 +111,7 @@ export default async function AnalyticsPage({
       prevCustomers={prevCustomers || []}
       products={products || []}
       orderItems={orderItems || []}
+      allTimeRevenue={allTimeRevenue}
     />
   )
 }

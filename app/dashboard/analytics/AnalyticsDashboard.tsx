@@ -7,7 +7,7 @@ import {
 } from 'recharts'
 import {
   TrendingUp, TrendingDown, ShoppingCart, Users,
-  DollarSign, Package, ArrowUpRight, Minus, Truck,
+  DollarSign, Package, ArrowUpRight, Minus, Truck, Calendar,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -48,6 +48,7 @@ interface Props {
   prevCustomers: Customer[]
   products: Product[]
   orderItems: OrderItem[]
+  allTimeRevenue: number
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -187,6 +188,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function AnalyticsDashboard({
   period, orders, prevOrders, allOrders,
   customers, prevCustomers, products, orderItems,
+  allTimeRevenue,
 }: Props) {
   const router = useRouter()
 
@@ -205,6 +207,14 @@ export default function AnalyticsDashboard({
   const prevCustCount = prevCustomers.length
   const aov = ordCount > 0 ? revenue / ordCount : 0
   const prevAov = prevOrders.length > 0 ? prevRevenue / prevOrders.length : 0
+
+  // Revenue summary (period-scoped)
+  const deliveredRevenue = orders
+    .filter((o) => o.status === 'delivered')
+    .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
+  const cancelledRevenue = orders
+    .filter((o) => o.status === 'cancelled')
+    .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
 
   // Revenue chart data
   const revenueData = buildRevenueData(orders, period)
@@ -514,6 +524,81 @@ export default function AnalyticsDashboard({
           </div>
         )}
       </div>
+
+      {/* Revenue Summary */}
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Revenue Summary</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {[
+            {
+              label: 'Gross Revenue',
+              value: `GH₵${fmt(Math.round(revenue))}`,
+              note: 'all orders in period',
+              icon: TrendingUp,
+              iconColor: 'text-[var(--color-success)]',
+              iconBg: 'bg-[var(--color-success-light)]',
+              valueColor: 'text-[var(--color-text-primary)]',
+            },
+            {
+              label: 'Product Revenue',
+              value: `GH₵${fmt(Math.round(productRev))}`,
+              note: 'product prices only',
+              icon: DollarSign,
+              iconColor: 'text-[var(--color-brand)]',
+              iconBg: 'bg-[var(--color-brand-light)]',
+              valueColor: 'text-[var(--color-brand)]',
+            },
+            {
+              label: 'Shipping Collected',
+              value: `GH₵${fmt(Math.round(shippingRev))}`,
+              note: 'shipping fees billed',
+              icon: Truck,
+              iconColor: 'text-orange-500',
+              iconBg: 'bg-orange-50',
+              valueColor: 'text-orange-500',
+            },
+            {
+              label: 'Delivered Revenue',
+              value: `GH₵${fmt(Math.round(deliveredRevenue))}`,
+              note: 'confirmed delivered',
+              icon: Package,
+              iconColor: 'text-[var(--color-success)]',
+              iconBg: 'bg-[var(--color-success-light)]',
+              valueColor: 'text-[var(--color-success)]',
+            },
+            {
+              label: 'Cancelled Revenue',
+              value: `GH₵${fmt(Math.round(cancelledRevenue))}`,
+              note: 'lost to cancellations',
+              icon: TrendingDown,
+              iconColor: 'text-[var(--color-danger)]',
+              iconBg: 'bg-[var(--color-danger-light)]',
+              valueColor: 'text-[var(--color-danger)]',
+            },
+            {
+              label: 'All-time Revenue',
+              value: `GH₵${fmt(Math.round(allTimeRevenue))}`,
+              note: 'since account creation',
+              icon: Calendar,
+              iconColor: 'text-purple-600',
+              iconBg: 'bg-purple-50',
+              valueColor: 'text-[var(--color-text-primary)]',
+            },
+          ].map(({ label, value, note, icon: Icon, iconColor, iconBg, valueColor }) => (
+            <div key={label} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--color-surface)]">
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+                <Icon className={`h-4 w-4 ${iconColor}`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-[var(--color-text-primary)] truncate">{label}</p>
+                <p className="text-xs text-[var(--color-text-muted)]">{note}</p>
+              </div>
+              <span className={`text-sm font-bold tabular-nums shrink-0 ${valueColor}`}>{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
     </div>
   )
 }
