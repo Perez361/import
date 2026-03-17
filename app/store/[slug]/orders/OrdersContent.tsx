@@ -63,7 +63,9 @@ export default function OrdersContent({ slug }: { slug: string }) {
     if (store.loading) return
     if (!store.customerId) { setLoading(false); return }
 
+    let cancelled = false
     const supabase = createClient()
+
     supabase
       .from('orders')
       .select(`
@@ -78,10 +80,16 @@ export default function OrdersContent({ slug }: { slug: string }) {
       .eq('customer_id', store.customerId)
       .order('created_at', { ascending: false })
       .then(({ data }: { data: Order[] | null }) => {
+        if (cancelled) return
         setOrders(data || [])
         setLoading(false)
       })
-  }, [store.customerId, store.loading])
+      .catch(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [store.loading, store.customerId])
 
   const handleConfirmPayment = async (orderId: string) => {
     const form = paymentForms[orderId]

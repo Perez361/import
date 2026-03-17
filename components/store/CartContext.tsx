@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useStore } from '@/components/store/StoreContext'
 
@@ -19,7 +19,7 @@ interface CartItem {
 interface CartContextType {
   cartCount: number
   cartItems: CartItem[]
-  addToCart: (productId: string) => Promise<void>
+  addToCart: (productId: string, productData?: { id: string; name: string; price: number; image_url: string | null }) => Promise<void>
   updateQuantity: (cartItemId: string, quantity: number) => Promise<void>
   removeFromCart: (cartItemId: string) => Promise<void>
   clearCart: () => Promise<void>
@@ -30,62 +30,64 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | null>(null)
 
-export function CartProvider({
-  children,
-  slug
-}: {
-  children: ReactNode
-  slug: string
-}) {
-  const [cartCount, setCartCount] = useState(0)
+function parseItems(cartData: any): CartItem[] {
+  if (!cartData?.cart_items) return []
+  return cartData.cart_items.map((item: any): CartItem => ({
+    ...item,
+    products: item.products as { id: string; name: string; price: number; image_url: string | null },
+  }))
+}
+
+function countItems(items: CartItem[]) {
+  return items.reduce((sum, item) => sum + item.quantity, 0)
+}
+
+const CART_SELECT = `
+  id,
+  cart_items (
+    id,
+    product_id,
+    quantity,
+    products ( id, name, price, image_url )
+  )
+`
+
+export function CartProvider({ children, slug }: { children: ReactNode; slug: string }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([])
+  const [cartCount, setCartCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const store = useStore()
 
+  // Cache cart id so addToCart doesn't need to re-fetch it every time
+  const cartIdRef = useRef<string | null>(null)
+
+  const setItems = (items: CartItem[]) => {
+    setCartItems(items)
+    setCartCount(countItems(items))
+  }
+
   const loadCart = useCallback(async () => {
     if (!store.customerId || !store.storeId) {
-      setCartItems([])
-      setCartCount(0)
+      setItems([])
+      cartIdRef.current = null
       setLoading(false)
       return
     }
 
     try {
       const supabase = createClient()
-      const { data: cartData } = await supabase
+      const { data } = await supabase
         .from('carts')
-        .select(`
-          id,
-          cart_items (
-            id,
-            product_id,
-            quantity,
-            products (
-              id,
-              name,
-              price,
-              image_url
-            )
-          )
-        `)
+        .select(CART_SELECT)
         .eq('customer_id', store.customerId)
-        .single()
-      
-      if (cartData?.cart_items) {
-        const items = cartData.cart_items.map((item: any): CartItem => ({
-          ...item,
-          products: item.products as {
-            id: string
-            name: string
-            price: number
-            image_url: string | null
-          }
-        }))
-        setCartItems(items)
-        setCartCount(items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0))
+        .maybeSingle()                          // ← maybeSingle: no error if no row
+
+      if (data) {
+        cartIdRef.current = data.id
+        setItems(parseItems(data))
       } else {
-        setCartItems([])
-        setCartCount(0)
+        cartIdRef.current = null
+        setItems([])
       }
     } catch (error) {
       console.error('Load cart error:', error)
@@ -94,96 +96,122 @@ export function CartProvider({
     }
   }, [store.customerId, store.storeId])
 
+  // Run when auth resolves — depend only on customerId, not store.loading
   useEffect(() => {
+    if (store.loading) return
     loadCart()
-  }, [store.customerId, store.storeId, loadCart])
+  }, [store.loading, store.customerId, loadCart])
 
-  const addToCart = async (productId: string) => {
+  // ── Ensure cart row exists, return its id ──────────────────────────────────
+  const ensureCartId = async (): Promise<string | null> => {
+    if (cartIdRef.current) return cartIdRef.current
+    if (!store.customerId || !store.storeId) return null
+
+    const supabase = createClient()
+
+    // Try to fetch existing first
+    const { data: existing } = await supabase
+      .from('carts')
+      .select('id')
+      .eq('customer_id', store.customerId)
+      .eq('store_id', store.storeId)
+      .maybeSingle()
+
+    if (existing?.id) {
+      cartIdRef.current = existing.id
+      return existing.id
+    }
+
+    // Create new cart
+    const { data: created } = await supabase
+      .from('carts')
+      .insert({ customer_id: store.customerId, store_id: store.storeId })
+      .select('id')
+      .single()
+
+    cartIdRef.current = created?.id ?? null
+    return cartIdRef.current
+  }
+
+  // ── addToCart — optimistic update first, sync in background ───────────────
+  const addToCart = async (
+    productId: string,
+    productData?: { id: string; name: string; price: number; image_url: string | null }
+  ) => {
     if (!store.customerId || !store.storeId) {
       window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
       return
     }
 
+    // Optimistic update immediately — no waiting
+    if (productData) {
+      setCartItems((prev) => {
+        const existing = prev.find((i) => i.product_id === productId)
+        let updated: CartItem[]
+        if (existing) {
+          updated = prev.map((i) =>
+            i.product_id === productId ? { ...i, quantity: i.quantity + 1 } : i
+          )
+        } else {
+          updated = [
+            ...prev,
+            {
+              id: `optimistic-${productId}`,
+              product_id: productId,
+              quantity: 1,
+              products: productData,
+            },
+          ]
+        }
+        setCartCount(countItems(updated))
+        return updated
+      })
+    }
+
     const supabase = createClient()
     try {
-      const { data: cart } = await supabase
-        .from('carts')
-        .select('id')
-        .eq('customer_id', store.customerId)
-        .eq('store_id', store.storeId)
-        .single()
+      const cartId = await ensureCartId()
+      if (!cartId) return
 
-      if (!cart) {
-        await supabase
-          .from('carts')
-          .insert({ customer_id: store.customerId!, store_id: store.storeId! })
-          .select('id')
-          .single()
-      }
-
-      await supabase
+      // Check if item already exists to increment vs insert
+      const { data: existingItem } = await supabase
         .from('cart_items')
-        .upsert({ 
-          cart_id: cart?.id || (await supabase.from('carts').select('id').eq('customer_id', store.customerId!).single()).data?.id, 
-          product_id: productId, 
-          quantity: 1 
-        }, { onConflict: 'cart_id,product_id' })
-      
-      const { data: updatedCart } = await supabase
-        .from('carts')
-        .select(`
-          id,
-          cart_items (
-            id,
-            product_id,
-            quantity,
-            products (
-              id,
-              name,
-              price,
-              image_url
-            )
-          )
-        `)
-        .eq('customer_id', store.customerId!)
-        .single()
-      
-      if (updatedCart?.cart_items) {
-        const items = updatedCart.cart_items.map((item: any): CartItem => ({
-          ...item,
-          products: item.products as {
-            id: string
-            name: string
-            price: number
-            image_url: string | null
-          }
-        }))
-        setCartItems(items)
-        setCartCount(items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0))
+        .select('id, quantity')
+        .eq('cart_id', cartId)
+        .eq('product_id', productId)
+        .maybeSingle()
+
+      if (existingItem) {
+        await supabase
+          .from('cart_items')
+          .update({ quantity: existingItem.quantity + 1 })
+          .eq('id', existingItem.id)
+      } else {
+        await supabase
+          .from('cart_items')
+          .insert({ cart_id: cartId, product_id: productId, quantity: 1 })
       }
+
+      // Refresh to get real ids (replaces optimistic entry)
+      await loadCart()
     } catch (error) {
       console.error('Add to cart error:', error)
+      await loadCart()
     }
   }
 
+  // ── updateQuantity — optimistic ───────────────────────────────────────────
   const updateQuantity = async (cartItemId: string, quantity: number) => {
-    if (!store.customerId || !store.storeId) return
+    if (!store.customerId) return
 
-    if (quantity <= 0) {
-      setCartItems(prev => {
-        const updated = prev.filter(item => item.id !== cartItemId)
-        setCartCount(updated.reduce((sum, item) => sum + item.quantity, 0))
-        return updated
-      })
-    } else {
-      setCartItems(prev => {
-        const updated = prev.map(item =>
-          item.id === cartItemId ? { ...item, quantity } : item
-        )
-        setCartCount(updated.reduce((sum, item) => sum + item.quantity, 0))
-        return updated
-      })
-    }
+    setCartItems((prev) => {
+      const updated =
+        quantity <= 0
+          ? prev.filter((i) => i.id !== cartItemId)
+          : prev.map((i) => (i.id === cartItemId ? { ...i, quantity } : i))
+      setCartCount(countItems(updated))
+      return updated
+    })
 
     const supabase = createClient()
     try {
@@ -193,17 +221,18 @@ export function CartProvider({
         await supabase.from('cart_items').update({ quantity }).eq('id', cartItemId)
       }
     } catch (error) {
-      console.error('Update quantity sync error:', error)
+      console.error('Update quantity error:', error)
       loadCart()
     }
   }
 
+  // ── removeFromCart — optimistic ───────────────────────────────────────────
   const removeFromCart = async (cartItemId: string) => {
-    if (!store.customerId || !store.storeId) return
+    if (!store.customerId) return
 
-    setCartItems(prev => {
-      const updated = prev.filter(item => item.id !== cartItemId)
-      setCartCount(updated.reduce((sum, item) => sum + item.quantity, 0))
+    setCartItems((prev) => {
+      const updated = prev.filter((i) => i.id !== cartItemId)
+      setCartCount(countItems(updated))
       return updated
     })
 
@@ -211,28 +240,22 @@ export function CartProvider({
     try {
       await supabase.from('cart_items').delete().eq('id', cartItemId)
     } catch (error) {
-      console.error('Remove from cart sync error:', error)
+      console.error('Remove from cart error:', error)
       loadCart()
     }
   }
 
+  // ── clearCart — optimistic ────────────────────────────────────────────────
   const clearCart = async () => {
     if (!store.customerId) return
 
-    // Optimistic update immediately so UI clears instantly
-    setCartItems([])
-    setCartCount(0)
+    setItems([])
 
     const supabase = createClient()
     try {
-      const { data: cart } = await supabase
-        .from('carts')
-        .select('id')
-        .eq('customer_id', store.customerId)
-        .single()
-
-      if (cart?.id) {
-        await supabase.from('cart_items').delete().eq('cart_id', cart.id)
+      const cartId = cartIdRef.current
+      if (cartId) {
+        await supabase.from('cart_items').delete().eq('cart_id', cartId)
       }
     } catch (error) {
       console.error('Clear cart error:', error)
@@ -240,20 +263,20 @@ export function CartProvider({
     }
   }
 
-  const value = {
-    cartCount,
-    cartItems,
-    addToCart,
-    updateQuantity,
-    removeFromCart,
-    clearCart,
-    customerId: store.customerId || null,
-    storeId: store.storeId || null,
-    loading
-  }
-
   return (
-    <CartContext.Provider value={value}>
+    <CartContext.Provider
+      value={{
+        cartCount,
+        cartItems,
+        addToCart,
+        updateQuantity,
+        removeFromCart,
+        clearCart,
+        customerId: store.customerId || null,
+        storeId: store.storeId || null,
+        loading,
+      }}
+    >
       {children}
     </CartContext.Provider>
   )
@@ -261,8 +284,6 @@ export function CartProvider({
 
 export const useCart = () => {
   const context = useContext(CartContext)
-  if (!context) {
-    throw new Error('useCart must be used within CartProvider')
-  }
+  if (!context) throw new Error('useCart must be used within CartProvider')
   return context
 }

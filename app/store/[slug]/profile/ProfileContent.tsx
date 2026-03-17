@@ -53,38 +53,56 @@ export default function ProfileContent({ slug }: { slug: string }) {
   })
 
   useEffect(() => {
+    // Wait for auth to resolve
     if (store.loading) return
-    if (!store.customerId) { setLoading(false); return }
 
-    const supabase = createClient()
-    const fetchAll = async () => {
-      const [{ data: customer }, { data: { user } }, { data: orders }] = await Promise.all([
-        supabase.from('customers').select('*').eq('id', store.customerId).single(),
-        supabase.auth.getUser(),
-        supabase
-          .from('orders')
-          .select('id, total, status, created_at, shipping_fee')
-          .eq('customer_id', store.customerId)
-          .order('created_at', { ascending: false })
-          .limit(5),
-      ])
-
-      if (customer) {
-        setProfile(customer)
-        setEmail(user?.email || '')
-        setFormData({
-          full_name: customer.full_name || '',
-          username: customer.username || '',
-          contact: customer.contact || '',
-          location: customer.location || '',
-          shipping_address: customer.shipping_address || '',
-        })
-      }
-      setRecentOrders(orders || [])
+    // Auth resolved, no customer — stop loading
+    if (!store.customerId) {
       setLoading(false)
+      return
     }
+
+    let cancelled = false
+    const supabase = createClient()
+
+    const fetchAll = async () => {
+      try {
+        const [{ data: customer }, { data: { user } }, { data: orders }] = await Promise.all([
+          supabase.from('customers').select('*').eq('id', store.customerId!).maybeSingle(),
+          supabase.auth.getUser(),
+          supabase
+            .from('orders')
+            .select('id, total, status, created_at, shipping_fee')
+            .eq('customer_id', store.customerId!)
+            .order('created_at', { ascending: false })
+            .limit(5),
+        ])
+
+        if (cancelled) return
+
+        if (customer) {
+          setProfile(customer)
+          setEmail(user?.email || '')
+          setFormData({
+            full_name: customer.full_name || '',
+            username: customer.username || '',
+            contact: customer.contact || '',
+            location: customer.location || '',
+            shipping_address: customer.shipping_address || '',
+          })
+        }
+        setRecentOrders(orders || [])
+      } catch (err) {
+        console.error('Profile fetch error:', err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
     fetchAll()
-  }, [store.customerId, store.loading])
+
+    return () => { cancelled = true }
+  }, [store.loading, store.customerId])
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()

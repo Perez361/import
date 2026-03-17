@@ -32,7 +32,14 @@ function ProductCard({ product, slug }: { product: Product; slug: string }) {
       window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
       return
     }
-    try { await addToCart(product.id) } catch (e) { console.error(e) }
+    try {
+      await addToCart(product.id, {
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image_url: product.image_url ?? null,
+      })
+    } catch (e) { console.error(e) }
   }
 
   return (
