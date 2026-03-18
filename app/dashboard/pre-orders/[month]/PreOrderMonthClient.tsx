@@ -6,8 +6,30 @@ import {
   ScanBarcode, AlertCircle, Clock, CheckCircle2,
 } from 'lucide-react'
 
-export type { CustomerRow, ProductGroup } from './types'
-import type { CustomerRow, ProductGroup } from './types'
+// ── Types (defined locally — not re-exported from a client component) ─────────
+
+interface CustomerRow {
+  orderId: string
+  name: string
+  contact: string
+  location: string
+  quantity: number
+  unitPrice: number
+  status: string
+  shippingFee: number | null
+  shippingNote: string | null
+  momoNumber: string | null
+  paymentRef: string | null
+}
+
+interface ProductGroup {
+  productId: string
+  productName: string
+  productImage: string | null
+  trackingNumber: string | null
+  supplierName: string | null
+  customers: CustomerRow[]
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -40,7 +62,7 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-// ── Customer Row ──────────────────────────────────────────────────────────────
+// ── Single customer row ───────────────────────────────────────────────────────
 
 function CustomerRow({ c, i }: { c: CustomerRow; i: number }) {
   return (
@@ -77,11 +99,10 @@ function CustomerRow({ c, i }: { c: CustomerRow; i: number }) {
   )
 }
 
-// ── Section (Paid or Pending) ─────────────────────────────────────────────────
+// ── Section header + rows ─────────────────────────────────────────────────────
 
 function CustomerSection({
-  title, icon, customers, emptyText,
-  headerClass, dividerClass,
+  title, icon, customers, emptyText, headerClass, dividerClass,
 }: {
   title: string
   icon: React.ReactNode
@@ -92,14 +113,13 @@ function CustomerSection({
 }) {
   return (
     <div>
-      {/* Section label */}
-      <div className={`grid grid-cols-[28px_1fr_84px_116px] gap-x-3 items-center px-4 py-2 border-y border-[var(--color-border)] ${headerClass}`}>
-        <span />
-        <div className="flex items-center gap-2 col-span-3">
-          {icon}
-          <span className="text-xs font-semibold uppercase tracking-wider">{title}</span>
-          <span className="ml-auto text-xs font-semibold tabular-nums">{customers.length}</span>
-        </div>
+      {/* Section label row — same grid so it aligns with rows */}
+      <div className={`flex items-center gap-2 px-4 py-2 border-y border-[var(--color-border)] ${headerClass}`}>
+        {icon}
+        <span className="text-xs font-semibold uppercase tracking-wider">{title}</span>
+        <span className="ml-auto text-xs font-semibold tabular-nums text-[var(--color-text-muted)]">
+          {customers.length}
+        </span>
       </div>
 
       {customers.length === 0 ? (
@@ -124,12 +144,12 @@ function ProductCard({ group }: { group: ProductGroup }) {
   const pending = group.customers.filter(c => c.status === 'pending')
 
   const totalQty     = group.customers.reduce((s, c) => s + c.quantity, 0)
-  const totalRevenue = paid.reduce((s, c) => s + c.unitPrice * c.quantity, 0)
+  const paidRevenue  = paid.reduce((s, c) => s + c.unitPrice * c.quantity, 0)
 
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden">
 
-      {/* ── Product Header ── */}
+      {/* ── Header (clickable) ── */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full text-left px-5 py-4 bg-[var(--color-surface)] hover:bg-[var(--color-border)]/20 transition-colors"
@@ -161,17 +181,22 @@ function ProductCard({ group }: { group: ProductGroup }) {
             )}
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
               <span className="text-xs text-[var(--color-text-muted)]">
-                <span className="font-semibold text-[var(--color-text-primary)]">{group.customers.length}</span> order{group.customers.length !== 1 ? 's' : ''}
+                <span className="font-semibold text-[var(--color-text-primary)]">{group.customers.length}</span>{' '}
+                order{group.customers.length !== 1 ? 's' : ''}
               </span>
               <span className="text-xs text-[var(--color-text-muted)]">
-                <span className="font-semibold text-[var(--color-text-primary)]">{totalQty}</span> unit{totalQty !== 1 ? 's' : ''}
+                <span className="font-semibold text-[var(--color-text-primary)]">{totalQty}</span>{' '}
+                unit{totalQty !== 1 ? 's' : ''}
               </span>
-              {/* Paid vs pending pill summary */}
               {paid.length > 0 && (
                 <span className="flex items-center gap-1 text-xs font-medium text-[var(--color-success)]">
                   <CheckCircle2 className="h-3 w-3" />
                   {paid.length} paid
-                  {totalRevenue > 0 && <span className="text-[var(--color-text-muted)] font-normal ml-0.5">· GH₵{fmt(totalRevenue)}</span>}
+                  {paidRevenue > 0 && (
+                    <span className="text-[var(--color-text-muted)] font-normal ml-0.5">
+                      · GH₵{fmt(paidRevenue)}
+                    </span>
+                  )}
                 </span>
               )}
               {pending.length > 0 && (
@@ -183,7 +208,7 @@ function ProductCard({ group }: { group: ProductGroup }) {
             </div>
           </div>
 
-          {/* Tracking number — desktop */}
+          {/* Tracking — desktop */}
           <div className="shrink-0 hidden sm:block">
             {group.trackingNumber ? (
               <span className="inline-flex items-center gap-2 font-mono text-sm font-bold bg-[var(--color-success-light)] border border-[var(--color-success)]/20 text-[var(--color-success)] px-3 py-1.5 rounded-lg">
@@ -220,10 +245,9 @@ function ProductCard({ group }: { group: ProductGroup }) {
         </div>
       </button>
 
-      {/* ── Two Sections ── */}
+      {/* ── Two sections ── */}
       {expanded && (
         <>
-          {/* ── PAID ── */}
           <CustomerSection
             title="Paid"
             icon={<CheckCircle2 className="h-3.5 w-3.5 text-[var(--color-success)]" />}
@@ -232,8 +256,6 @@ function ProductCard({ group }: { group: ProductGroup }) {
             headerClass="bg-[var(--color-success-light)]"
             dividerClass="divide-[var(--color-border)]"
           />
-
-          {/* ── PENDING ── */}
           <CustomerSection
             title="Awaiting Payment"
             icon={<Clock className="h-3.5 w-3.5 text-[var(--color-warning)]" />}
@@ -248,69 +270,76 @@ function ProductCard({ group }: { group: ProductGroup }) {
   )
 }
 
-// ── Main Export ───────────────────────────────────────────────────────────────
+// ── Main export ───────────────────────────────────────────────────────────────
 
-export default function PreOrderMonthClient({ groups, monthLabel }: {
+export default function PreOrderMonthClient({
+  groups,
+  monthLabel,
+}: {
   groups: ProductGroup[]
   monthLabel: string
 }) {
-  const totalOrders    = groups.reduce((s, g) => s + g.customers.length, 0)
-  const totalPaid      = groups.reduce((s, g) => s + g.customers.filter(c => PAID_STATUSES.has(c.status)).length, 0)
-  const totalPending   = groups.reduce((s, g) => s + g.customers.filter(c => c.status === 'pending').length, 0)
-  const needsTracking  = groups.filter(g => !g.trackingNumber).length
+  const totalOrders   = groups.reduce((s, g) => s + g.customers.length, 0)
+  const totalPaid     = groups.reduce((s, g) => s + g.customers.filter(c => PAID_STATUSES.has(c.status)).length, 0)
+  const totalPending  = groups.reduce((s, g) => s + g.customers.filter(c => c.status === 'pending').length, 0)
+  const needsTracking = groups.filter(g => !g.trackingNumber).length
+
+  if (groups.length === 0) {
+    return (
+      <div className="rounded-2xl border-2 border-dashed border-[var(--color-border)] p-12 text-center">
+        <Package className="h-10 w-10 text-[var(--color-text-muted)] mx-auto mb-3" />
+        <p className="text-sm font-medium text-[var(--color-text-muted)]">No orders for {monthLabel}.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
 
-      {/* ── Summary bar ── */}
-      {groups.length > 0 && (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3 flex items-center gap-4 flex-wrap shadow-sm">
-          <span className="text-sm text-[var(--color-text-muted)]">
-            <span className="font-semibold text-[var(--color-text-primary)]">{groups.length}</span> product{groups.length !== 1 ? 's' : ''}
-          </span>
-          <span className="h-4 w-px bg-[var(--color-border)]" />
-          <span className="text-sm text-[var(--color-text-muted)]">
-            <span className="font-semibold text-[var(--color-text-primary)]">{totalOrders}</span> total orders
-          </span>
-          {totalPaid > 0 && (
-            <>
-              <span className="h-4 w-px bg-[var(--color-border)]" />
-              <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-success)]">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                {totalPaid} paid
-              </span>
-            </>
-          )}
-          {totalPending > 0 && (
-            <>
-              <span className="h-4 w-px bg-[var(--color-border)]" />
-              <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-warning)]">
-                <Clock className="h-3.5 w-3.5" />
-                {totalPending} pending
-              </span>
-            </>
-          )}
-          {needsTracking > 0 && (
-            <>
-              <span className="h-4 w-px bg-[var(--color-border)]" />
-              <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-text-muted)]">
-                <AlertCircle className="h-3.5 w-3.5" />
-                {needsTracking} missing tracking
-              </span>
-            </>
-          )}
-        </div>
-      )}
+      {/* Summary bar */}
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3 flex items-center gap-4 flex-wrap shadow-sm">
+        <span className="text-sm text-[var(--color-text-muted)]">
+          <span className="font-semibold text-[var(--color-text-primary)]">{groups.length}</span>{' '}
+          product{groups.length !== 1 ? 's' : ''}
+        </span>
+        <span className="h-4 w-px bg-[var(--color-border)]" />
+        <span className="text-sm text-[var(--color-text-muted)]">
+          <span className="font-semibold text-[var(--color-text-primary)]">{totalOrders}</span>{' '}
+          order{totalOrders !== 1 ? 's' : ''}
+        </span>
+        {totalPaid > 0 && (
+          <>
+            <span className="h-4 w-px bg-[var(--color-border)]" />
+            <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-success)]">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {totalPaid} paid
+            </span>
+          </>
+        )}
+        {totalPending > 0 && (
+          <>
+            <span className="h-4 w-px bg-[var(--color-border)]" />
+            <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-warning)]">
+              <Clock className="h-3.5 w-3.5" />
+              {totalPending} pending
+            </span>
+          </>
+        )}
+        {needsTracking > 0 && (
+          <>
+            <span className="h-4 w-px bg-[var(--color-border)]" />
+            <span className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+              <AlertCircle className="h-3.5 w-3.5" />
+              {needsTracking} missing tracking
+            </span>
+          </>
+        )}
+      </div>
 
-      {/* ── Product Cards ── */}
-      {groups.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-[var(--color-border)] p-12 text-center">
-          <Package className="h-10 w-10 text-[var(--color-text-muted)] mx-auto mb-3" />
-          <p className="text-sm font-medium text-[var(--color-text-muted)]">No orders for {monthLabel}.</p>
-        </div>
-      ) : (
-        groups.map((g) => <ProductCard key={g.productId} group={g} />)
-      )}
+      {/* Product cards */}
+      {groups.map((g) => (
+        <ProductCard key={g.productId} group={g} />
+      ))}
     </div>
   )
 }

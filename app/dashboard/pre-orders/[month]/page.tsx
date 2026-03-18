@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { ArrowLeft, Calendar } from 'lucide-react'
 import PreOrderMonthClient from './PreOrderMonthClient'
+// ✅ Import types from types.ts — NOT from the client component
 import type { ProductGroup } from './types'
 
 function monthLabel(key: string) {
@@ -26,17 +27,14 @@ export default async function PreOrderMonthPage({
   const user = await getAuthenticatedUser()
   if (!user) redirect('/login')
 
-  // Validate month format
   if (!/^\d{4}-\d{2}$/.test(month)) notFound()
 
   const supabase = await createClient()
 
-  // Calculate date range for this month
   const [year, mon] = month.split('-').map(Number)
   const startDate = new Date(year, mon - 1, 1).toISOString()
   const endDate = new Date(year, mon, 1).toISOString()
 
-  // Fetch all orders in this month for this store
   const { data: orders, error } = await supabase
     .from('orders')
     .select(`
@@ -54,14 +52,6 @@ export default async function PreOrderMonthPage({
     .order('created_at', { ascending: false })
 
   if (error) console.error('Pre-order month fetch error:', error)
-  console.log('Pre-orders debug:', {
-    userId: user.id,
-    month,
-    startDate,
-    endDate,
-    orderCount: orders?.length,
-    firstOrder: orders?.[0],
-  })
 
   // Group by product
   const productMap = new Map<string, ProductGroup>()
@@ -71,7 +61,7 @@ export default async function PreOrderMonthPage({
     const custName = customer?.full_name || customer?.username || 'Unknown'
 
     for (const item of (order.order_items || []) as any[]) {
-      const product = Array.isArray(item.products) ? item.products[0] : item.products as any
+      const product = Array.isArray(item.products) ? item.products[0] : item.products
       if (!product) continue
 
       if (!productMap.has(product.id)) {
@@ -103,7 +93,6 @@ export default async function PreOrderMonthPage({
 
   const groups = Array.from(productMap.values())
   const label = monthLabel(month)
-
   const totalOrders = orders?.length || 0
   const totalItems = groups.reduce((s, g) => s + g.customers.length, 0)
 
@@ -125,7 +114,9 @@ export default async function PreOrderMonthPage({
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text-primary)]">{label}</h1>
             <p className="text-sm text-[var(--color-text-muted)]">
-              {groups.length} product{groups.length !== 1 ? 's' : ''} · {totalOrders} order{totalOrders !== 1 ? 's' : ''} · {totalItems} customer order{totalItems !== 1 ? 's' : ''}
+              {groups.length} product{groups.length !== 1 ? 's' : ''} ·{' '}
+              {totalOrders} order{totalOrders !== 1 ? 's' : ''} ·{' '}
+              {totalItems} customer order{totalItems !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
