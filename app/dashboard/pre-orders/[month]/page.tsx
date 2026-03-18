@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { ArrowLeft, Calendar } from 'lucide-react'
 import PreOrderMonthClient from './PreOrderMonthClient'
-// ✅ Import types from types.ts — NOT from the client component
 import type { ProductGroup } from './types'
 
 function monthLabel(key: string) {
@@ -33,8 +32,38 @@ export default async function PreOrderMonthPage({
 
   const [year, mon] = month.split('-').map(Number)
   const startDate = new Date(year, mon - 1, 1).toISOString()
-  const endDate = new Date(year, mon, 1).toISOString()
+  const endDate   = new Date(year, mon, 1).toISOString()
 
+  // ── DEBUG 1: confirm who the user is and what importer record exists ────────
+  const { data: importer } = await supabase
+    .from('importers')
+    .select('id, store_slug, user_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  console.log('[pre-orders/page] auth user id :', user.id)
+  console.log('[pre-orders/page] importer row  :', importer)
+
+  // The store_id on orders is importer.id — which equals user.id only when
+  // the importer was created with id = user.id (as in your auth callback).
+  // Use user.id directly since that's what your code inserts as importer.id.
+  const storeId = user.id
+
+  // ── DEBUG 2: check raw orders exist for this store at all ───────────────────
+  const { data: allOrders, error: allErr } = await supabase
+    .from('orders')
+    .select('id, status, created_at, store_id')
+    .eq('store_id', storeId)
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  console.log('[pre-orders/page] all recent orders (any month):', allOrders?.length, allErr?.message)
+  console.log('[pre-orders/page] date range:', startDate, '→', endDate)
+  if (allOrders?.length) {
+    console.log('[pre-orders/page] sample created_at values:', allOrders.slice(0, 3).map(o => o.created_at))
+  }
+
+  // ── Main query ──────────────────────────────────────────────────────────────
   const { data: orders, error } = await supabase
     .from('orders')
     .select(`
@@ -46,22 +75,30 @@ export default async function PreOrderMonthPage({
         products ( id, name, image_url, tracking_number, supplier_name )
       )
     `)
-    .eq('store_id', user.id)
+    .eq('store_id', storeId)
     .gte('created_at', startDate)
     .lt('created_at', endDate)
     .order('created_at', { ascending: false })
 
-  if (error) console.error('Pre-order month fetch error:', error)
+  console.log('[pre-orders/page] filtered orders count:', orders?.length, error?.message)
+  if (orders?.length) {
+    console.log('[pre-orders/page] first order:', JSON.stringify(orders[0], null, 2))
+  }
 
-  // Group by product
+  // ── Group by product ────────────────────────────────────────────────────────
   const productMap = new Map<string, ProductGroup>()
 
   for (const order of (orders || []) as any[]) {
     const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers
     const custName = customer?.full_name || customer?.username || 'Unknown'
 
-    for (const item of (order.order_items || []) as any[]) {
+    const items = order.order_items || []
+    console.log(`[pre-orders/page] order ${order.id} → ${items.length} items, customer:`, custName)
+
+    for (const item of items as any[]) {
       const product = Array.isArray(item.products) ? item.products[0] : item.products
+      console.log('[pre-orders/page]   item product:', product?.id, product?.name)
+
       if (!product) continue
 
       if (!productMap.has(product.id)) {
@@ -92,9 +129,11 @@ export default async function PreOrderMonthPage({
   }
 
   const groups = Array.from(productMap.values())
-  const label = monthLabel(month)
+  console.log('[pre-orders/page] final groups:', groups.length)
+
+  const label       = monthLabel(month)
   const totalOrders = orders?.length || 0
-  const totalItems = groups.reduce((s, g) => s + g.customers.length, 0)
+  const totalItems  = groups.reduce((s, g) => s + g.customers.length, 0)
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
@@ -121,6 +160,18 @@ export default async function PreOrderMonthPage({
           </div>
         </div>
       </div>
+
+      {/* Temporary debug panel — remove after fixing */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-4 text-xs font-mono space-y-1">
+          <p className="font-bold text-yellow-800 mb-2">🔍 Debug info (dev only)</p>
+          <p><span className="text-yellow-600">store_id used:</span> {storeId}</p>
+          <p><span className="text-yellow-600">importer.id:</span> {importer?.id ?? 'not found'}</p>
+          <p><span className="text-yellow-600">date range:</span> {startDate.slice(0,10)} → {endDate.slice(0,10)}</p>
+          <p><span className="text-yellow-600">orders in month:</span> {totalOrders}</p>
+          <p><span className="text-yellow-600">product groups:</span> {groups.length}</p>
+        </div>
+      )}
 
       <PreOrderMonthClient groups={groups} monthLabel={label} />
     </div>
