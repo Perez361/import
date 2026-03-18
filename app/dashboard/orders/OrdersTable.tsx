@@ -4,12 +4,13 @@ import { useState, useEffect } from 'react'
 import {
   Phone, MessageCircle, CheckCircle2, Loader2,
   CreditCard, PackageCheck, AlertCircle, Package,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, Truck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   markProductPaidAction,
   markShippingPaidAction,
+  markDeliveredAction,
 } from './actions'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -121,10 +122,11 @@ function CustomerRow({ order, onPatch }: {
   order: Order
   onPatch: (id: string, patch: Partial<Order>) => void
 }) {
-  const [expanded, setExpanded]  = useState(false)
-  const [ref, setRef]            = useState('')
-  const [confirmingProduct, setCP] = useState(false)
+  const [expanded, setExpanded]     = useState(false)
+  const [ref, setRef]               = useState('')
+  const [confirmingProduct, setCP]  = useState(false)
   const [confirmingShipping, setCS] = useState(false)
+  const [markingDelivered, setMD]   = useState(false)
 
   const customer     = getCustomer(order.customers)
   const customerName = customer?.full_name || customer?.username || 'Unknown'
@@ -144,13 +146,24 @@ function CustomerRow({ order, onPatch }: {
     setRef('')
   }
 
-  const handleConfirmShipping = async () => {
+  // Step 1: verify the customer's MoMo payment — stays at shipping_paid, does NOT deliver
+  const handleVerifyShippingPayment = async () => {
     setCS(true)
     const result: any = await markShippingPaidAction(order.id)
     setCS(false)
     if (result?.error) { toast.error(result.error); return }
+    toast.success('Shipping payment verified!')
+    onPatch(order.id, { shipping_paid: true, status: 'shipping_paid' })
+  }
+
+  // Step 2: physically hand over to customer → mark delivered
+  const handleMarkDelivered = async () => {
+    setMD(true)
+    const result: any = await markDeliveredAction(order.id)
+    setMD(false)
+    if (result?.error) { toast.error(result.error); return }
     toast.success('Order marked as delivered!')
-    onPatch(order.id, { shipping_paid: true, status: 'delivered' })
+    onPatch(order.id, { status: 'delivered' })
   }
 
   return (
@@ -160,7 +173,6 @@ function CustomerRow({ order, onPatch }: {
         className="grid grid-cols-[1fr_110px_120px_32px] gap-x-3 items-center px-4 py-3 hover:bg-[var(--color-surface)] transition-colors cursor-pointer"
         onClick={() => setExpanded(!expanded)}
       >
-        {/* Customer */}
         <div className="min-w-0">
           <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{customerName}</p>
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
@@ -173,7 +185,6 @@ function CustomerRow({ order, onPatch }: {
           </div>
         </div>
 
-        {/* Amount */}
         <div className="text-right">
           <p className="text-sm font-bold text-[var(--color-text-primary)] tabular-nums">GH₵{fmt(productTotal)}</p>
           {shippingFee > 0 && (
@@ -181,17 +192,12 @@ function CustomerRow({ order, onPatch }: {
           )}
         </div>
 
-        {/* Status */}
         <div className="flex justify-end">
           <StatusBadge status={status} />
         </div>
 
-        {/* Chevron */}
         <div className="text-[var(--color-text-muted)]">
-          {expanded
-            ? <ChevronDown className="h-4 w-4" />
-            : <ChevronRight className="h-4 w-4" />
-          }
+          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </div>
       </div>
 
@@ -253,7 +259,7 @@ function CustomerRow({ order, onPatch }: {
             </div>
           )}
 
-          {/* ── Shipping payment pending — WhatsApp reminder only ── */}
+          {/* ── Shipping billed — WhatsApp reminder ── */}
           {status === 'shipping_billed' && (
             <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-3 flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 min-w-0">
@@ -280,13 +286,13 @@ function CustomerRow({ order, onPatch }: {
             </div>
           )}
 
-          {/* ── Verify & deliver ── */}
-          {status === 'shipping_paid' && (
-            <div className="mt-3 rounded-xl border border-[var(--color-success)] bg-[var(--color-success-light)] p-3 space-y-2.5">
+          {/* ── STEP 1: Customer submitted payment — verify MoMo ── */}
+          {status === 'shipping_paid' && !order.shipping_paid && (
+            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2.5">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-[var(--color-success)] shrink-0" />
-                <p className="text-sm font-semibold text-[var(--color-success)]">
-                  Shipping payment confirmed — GH₵{fmt(shippingFee)}
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <p className="text-sm font-semibold text-emerald-700">
+                  Customer submitted shipping payment — GH₵{fmt(shippingFee)}
                 </p>
               </div>
               {(order.momo_number || order.payment_reference) && (
@@ -301,11 +307,34 @@ function CustomerRow({ order, onPatch }: {
               )}
               <button
                 disabled={confirmingShipping}
-                onClick={e => { e.stopPropagation(); handleConfirmShipping() }}
+                onClick={e => { e.stopPropagation(); handleVerifyShippingPayment() }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+              >
+                {confirmingShipping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                Verify Payment
+              </button>
+            </div>
+          )}
+
+          {/* ── STEP 2: Payment verified — mark delivered when physically handed over ── */}
+          {status === 'shipping_paid' && order.shipping_paid && (
+            <div className="mt-3 rounded-xl border border-[var(--color-success)] bg-[var(--color-success-light)] p-3 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-[var(--color-success)] shrink-0" />
+                <p className="text-sm font-semibold text-[var(--color-success)]">
+                  Payment verified — GH₵{fmt(shippingFee)} received
+                </p>
+              </div>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Once you've physically handed the item to the customer, mark it as delivered.
+              </p>
+              <button
+                disabled={markingDelivered}
+                onClick={e => { e.stopPropagation(); handleMarkDelivered() }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-success)] hover:bg-[var(--color-success)]/90 text-white text-sm font-semibold transition-colors disabled:opacity-50"
               >
-                {confirmingShipping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PackageCheck className="h-3.5 w-3.5" />}
-                Verify & Mark Delivered
+                {markingDelivered ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
+                Mark as Delivered
               </button>
             </div>
           )}
@@ -350,14 +379,11 @@ function ProductGroupCard({ group }: { group: ProductGroup }) {
 
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden">
-
-      {/* Product header */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full text-left px-5 py-4 bg-[var(--color-surface)] hover:bg-[var(--color-border)]/20 transition-colors"
       >
         <div className="flex items-center gap-4">
-          {/* Thumbnail */}
           <div className="shrink-0">
             {group.productImage ? (
               <img src={group.productImage} alt={group.productName} className="h-12 w-12 rounded-xl object-cover border border-[var(--color-border)]" />
@@ -367,8 +393,6 @@ function ProductGroupCard({ group }: { group: ProductGroup }) {
               </div>
             )}
           </div>
-
-          {/* Name + stats */}
           <div className="flex-1 min-w-0">
             <p className="font-bold text-[var(--color-text-primary)] text-base leading-tight truncate">
               {group.productName}
@@ -397,24 +421,20 @@ function ProductGroupCard({ group }: { group: ProductGroup }) {
               )}
             </div>
           </div>
-
           <div className="shrink-0 text-[var(--color-text-muted)]">
             {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </div>
         </div>
       </button>
 
-      {/* Customer rows */}
       {expanded && (
         <>
-          {/* Column headers */}
           <div className="grid grid-cols-[1fr_110px_120px_32px] gap-x-3 items-center px-4 py-2 border-y border-[var(--color-border)] bg-[var(--color-surface)]">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Customer</span>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] text-right">Amount</span>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] text-right">Status</span>
             <span />
           </div>
-
           <div className="divide-y divide-[var(--color-border)]">
             {orders.map(order => (
               <CustomerRow key={order.id} order={order} onPatch={patchOrder} />
@@ -447,17 +467,16 @@ export default function OrdersTable({ orders }: Props) {
 
       for (const item of items) {
         const product = Array.isArray(item.products) ? item.products[0] : item.products
-        if (!product?.id) continue                          // ← requires id to exist
+        if (!product?.id) continue
         const key = product.id
         if (!map.has(key)) {
           map.set(key, {
             productId:    product.id,
             productName:  product.name,
-            productImage: product.image_url ?? null,        // ← now available
+            productImage: product.image_url ?? null,
             orders:       [],
           })
         }
-        // Only add the order once per product group
         if (!map.get(key)!.orders.find(o => o.id === order.id)) {
           map.get(key)!.orders.push(order)
         }

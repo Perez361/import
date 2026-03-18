@@ -29,7 +29,7 @@ export async function billShippingAction(orderId: string, shippingFee: number, n
   return { success: true }
 }
 
-// Importer: mark shipping as paid (after verifying MoMo)
+// Importer: verify the customer's MoMo payment for shipping (does NOT mark as delivered)
 export async function markShippingPaidAction(orderId: string) {
   const user = await getAuthenticatedUser()
   if (!user) redirect('/login')
@@ -41,6 +41,27 @@ export async function markShippingPaidAction(orderId: string) {
     .update({
       shipping_paid: true,
       shipping_paid_at: new Date().toISOString(),
+      status: 'shipping_paid', // stays here until importer physically delivers
+    })
+    .eq('id', orderId)
+    .eq('store_id', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/orders')
+  return { success: true }
+}
+
+// Importer: mark order as delivered (only after physically handing over to customer)
+export async function markDeliveredAction(orderId: string) {
+  const user = await getAuthenticatedUser()
+  if (!user) redirect('/login')
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('orders')
+    .update({
       status: 'delivered',
     })
     .eq('id', orderId)
