@@ -35,9 +35,9 @@ export default function MobileDashboardShell({ businessName, email, children }: 
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  // Auto-logout after 30 min inactivity, warn 2 min before
-  const TIMEOUT_MS = 15 * 60 * 1000   // 15 minutes
-  const WARNING_MS = 2 * 60 * 1000    // warn 2 min before
+  // Auto-logout after 15 min inactivity, warn 2 min before
+  const TIMEOUT_MS = 15 * 60 * 1000
+  const WARNING_MS = 2 * 60 * 1000
 
   const handleTimeout = useCallback(async () => {
     await logoutAction()
@@ -79,10 +79,12 @@ export default function MobileDashboardShell({ businessName, email, children }: 
   )
 
   return (
-    <div className="min-h-screen bg-[var(--color-surface)] flex flex-col">
+    // ↓ h-screen (was min-h-screen) — locks the shell to the viewport so the
+    //   browser never scrolls the outer page. Only <main> scrolls internally.
+    <div className="h-screen bg-[var(--color-surface)] flex flex-col overflow-hidden">
 
       {/* ── Top header (mobile + desktop) ────────────────────────────────── */}
-      <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-card)] shadow-sm">
+      <header className="shrink-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-card)] shadow-sm">
         <div className="flex items-center justify-between px-4 py-3 sm:px-6">
 
           {/* Left: hamburger + logo */}
@@ -251,14 +253,17 @@ export default function MobileDashboardShell({ businessName, email, children }: 
           </>
         )}
 
-        {/* ── Main content ──────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-auto min-w-0">
+        {/* ── Main content — this is the only thing that scrolls ────────── */}
+        {/* overflow-y-scroll (not auto) keeps the scrollbar space always reserved,
+            preventing the header from shifting left when content gets taller */}
+        <main className="flex-1 overflow-y-scroll overflow-x-hidden min-w-0">
           {children}
         </main>
+
       </div>
 
       {/* ── Mobile bottom nav ─────────────────────────────────────────────── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[var(--color-card)] border-t border-[var(--color-border)] shadow-lg">
+      <nav className="lg:hidden shrink-0 bg-[var(--color-card)] border-t border-[var(--color-border)] shadow-lg z-30">
         <div className="flex items-center justify-around px-2 py-1.5">
           {[
             { href: '/dashboard', label: 'Home', icon: Home },
@@ -292,9 +297,6 @@ export default function MobileDashboardShell({ businessName, email, children }: 
           </button>
         </div>
       </nav>
-
-      {/* Bottom padding for mobile nav */}
-      <div className="lg:hidden h-16" />
 
       {/* Inactivity warning */}
       {showWarning && (
