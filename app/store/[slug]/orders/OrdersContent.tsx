@@ -16,7 +16,7 @@ import { cancelOrderAction } from './actions'
 interface OrderItem {
   id: string
   quantity: number
-  products: { name: string; price: number }
+  products: { name: string; price: number; image_url?: string | null }
 }
 
 interface Order {
@@ -117,6 +117,11 @@ function OrderCard({ order, slug, onUpdate }: {
     onUpdate(order.id, { status: 'cancelled' })
     setShowCancelConfirm(false)
     setExpanded(false)
+
+    // Notify importer via WhatsApp
+    if ((result as any).whatsappUrl) {
+      window.open((result as any).whatsappUrl, '_blank')
+    }
   }
 
   return (
@@ -148,7 +153,9 @@ function OrderCard({ order, slug, onUpdate }: {
           <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLOR[status] || 'bg-gray-100 text-gray-600'}`}>
             {STATUS_LABEL[status] || status.replace(/_/g, ' ')}
           </span>
-          {expanded ? <ChevronUp className="h-4 w-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="h-4 w-4 text-[var(--color-text-muted)]" />}
+          {expanded
+            ? <ChevronUp className="h-4 w-4 text-[var(--color-text-muted)]" />
+            : <ChevronDown className="h-4 w-4 text-[var(--color-text-muted)]" />}
         </div>
       </button>
 
@@ -156,30 +163,62 @@ function OrderCard({ order, slug, onUpdate }: {
       {expanded && (
         <div className="border-t border-[var(--color-border)] px-4 py-4 space-y-4 bg-[var(--color-surface)]">
 
-          {/* Items breakdown */}
-          <div className="rounded-lg bg-[var(--color-card)] border border-[var(--color-border)] p-3 space-y-2 text-sm">
+          {/* ── Items breakdown with thumbnails ── */}
+          <div className="rounded-lg bg-[var(--color-card)] border border-[var(--color-border)] overflow-hidden">
             {order.order_items.map((item, i) => (
-              <div key={i} className="flex justify-between">
-                <span className="text-[var(--color-text-primary)]">{item.products?.name} × {item.quantity}</span>
-                <span className="font-semibold tabular-nums">GH₵{fmt(nv(item.products?.price) * item.quantity)}</span>
+              <div
+                key={i}
+                className={`flex items-center gap-3 px-3 py-2.5 ${
+                  i < order.order_items.length - 1 ? 'border-b border-[var(--color-border)]' : ''
+                }`}
+              >
+                {/* Thumbnail */}
+                <div className="h-10 w-10 rounded-lg overflow-hidden bg-[var(--color-surface)] border border-[var(--color-border)] shrink-0">
+                  {item.products?.image_url ? (
+                    <img
+                      src={item.products.image_url}
+                      alt={item.products.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center">
+                      <Package className="h-4 w-4 text-[var(--color-text-muted)]" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Name + qty */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                    {item.products?.name}
+                  </p>
+                  <p className="text-xs text-[var(--color-text-muted)]">Qty: {item.quantity}</p>
+                </div>
+
+                {/* Price */}
+                <span className="text-sm font-semibold tabular-nums text-[var(--color-text-primary)] shrink-0">
+                  GH₵{fmt(nv(item.products?.price) * item.quantity)}
+                </span>
               </div>
             ))}
-            <div className="flex justify-between pt-2 border-t border-[var(--color-border)] font-semibold">
-              <span>Product Total</span>
-              <span className="tabular-nums">GH₵{fmt(productTotal)}</span>
-            </div>
-            {shippingFee > 0 && (
-              <>
+
+            {/* Totals footer */}
+            <div className="px-3 py-2.5 bg-[var(--color-surface)] border-t border-[var(--color-border)] space-y-1.5 text-sm">
+              <div className="flex justify-between text-[var(--color-text-muted)]">
+                <span>Product Total</span>
+                <span className="tabular-nums font-medium">GH₵{fmt(productTotal)}</span>
+              </div>
+              {shippingFee > 0 && (
                 <div className="flex justify-between text-orange-600 font-semibold">
                   <span className="flex items-center gap-1"><Truck className="h-3.5 w-3.5" /> Shipping Fee</span>
                   <span className="tabular-nums">GH₵{fmt(shippingFee)}</span>
                 </div>
-                <div className="flex justify-between font-bold border-t border-[var(--color-border)] pt-2">
-                  <span>Grand Total</span>
-                  <span className="tabular-nums">GH₵{fmt(grandTotal)}</span>
-                </div>
-              </>
-            )}
+              )}
+              <div className="flex justify-between font-bold border-t border-[var(--color-border)] pt-1.5">
+                <span>Grand Total</span>
+                <span className="tabular-nums text-[var(--color-success)]">GH₵{fmt(grandTotal)}</span>
+              </div>
+            </div>
           </div>
 
           {/* ── Pending: awaiting product payment + cancel option ── */}
@@ -254,19 +293,19 @@ function OrderCard({ order, slug, onUpdate }: {
                   <label className="text-xs font-semibold text-gray-700 mb-1 block">MoMo Transaction Reference</label>
                   <input
                     type="text"
-                    placeholder="e.g. A123456789"
+                    placeholder="e.g. ABC123456"
                     value={form.reference}
                     onChange={e => setForm(p => ({ ...p, reference: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg border border-orange-200 bg-white text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-lg border border-orange-200 bg-white text-sm font-mono focus:ring-2 focus:ring-orange-400 focus:outline-none"
                   />
                 </div>
                 <button
-                  disabled={paying}
                   onClick={handlePay}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+                  disabled={paying}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
                 >
                   {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4" />}
-                  I've Sent the Payment
+                  Submit Shipping Payment
                 </button>
               </div>
             </div>
@@ -275,92 +314,79 @@ function OrderCard({ order, slug, onUpdate }: {
           {/* ── Payment submitted ── */}
           {paymentSubmitted && (
             <div className="rounded-xl border border-green-200 bg-green-50 p-3 flex items-start gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+              <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
               <div>
-                <p className="font-bold text-green-700 text-sm">Payment submitted!</p>
-                <p className="text-xs text-green-600 mt-0.5">Your MoMo payment is being verified. You'll receive your order once confirmed.</p>
+                <p className="text-sm font-semibold text-green-700">Payment submitted</p>
+                <p className="text-xs text-green-600 mt-0.5">The importer will verify your payment and arrange delivery.</p>
               </div>
             </div>
           )}
 
           {/* ── Delivered ── */}
           {status === 'delivered' && (
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-3 flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-[var(--color-success)]" />
-              <span className="font-semibold text-[var(--color-success)]">Order delivered</span>
-              <span className="ml-auto text-[var(--color-text-muted)] tabular-nums">GH₵{fmt(grandTotal)}</span>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <p className="text-sm font-semibold text-emerald-700">Order delivered — enjoy your items! 🎉</p>
             </div>
           )}
 
           {/* ── Cancelled ── */}
           {status === 'cancelled' && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-3 flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3">
               <p className="text-sm font-semibold text-red-600">Order cancelled</p>
             </div>
           )}
+
         </div>
       )}
     </div>
   )
 }
 
-// ── Monthly invoice card ──────────────────────────────────────────────────────
+// ── Month invoice card ────────────────────────────────────────────────────────
 
 function MonthInvoiceCard({ invoice, slug, onUpdate }: {
   invoice: MonthInvoice
   slug: string
-  onUpdate: (orderId: string, patch: Partial<Order>) => void
+  onUpdate: (id: string, patch: Partial<Order>) => void
 }) {
   const [open, setOpen] = useState(true)
+  const [orders, setOrders] = useState(invoice.orders)
 
-  const totalProducts = invoice.orders.reduce((s, o) => s + nv(o.total), 0)
-  const totalShipping = invoice.orders.reduce((s, o) => s + nv(o.shipping_fee), 0)
+  const onUpdate2 = (id: string, patch: Partial<Order>) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o))
+    onUpdate(id, patch)
+  }
+
+  const totalProducts = orders.reduce((s, o) => s + nv(o.total), 0)
+  const totalShipping = orders.reduce((s, o) => s + nv(o.shipping_fee), 0)
   const grandTotal = totalProducts + totalShipping
-  const hasPendingShipping = invoice.orders.some(o => o.status === 'shipping_billed')
-  const allDelivered = invoice.orders.every(o => o.status === 'delivered')
 
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
       <button
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--color-surface)] transition-colors text-left"
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-left"
         onClick={() => setOpen(!open)}
       >
         <div className="flex items-center gap-3">
-          <div className={`flex h-10 w-10 items-center justify-center rounded-xl shrink-0 ${
-            allDelivered ? 'bg-[var(--color-success-light)]' : hasPendingShipping ? 'bg-orange-100' : 'bg-[var(--color-brand-light)]'
-          }`}>
-            <Receipt className={`h-5 w-5 ${
-              allDelivered ? 'text-[var(--color-success)]' : hasPendingShipping ? 'text-orange-600' : 'text-[var(--color-brand)]'
-            }`} />
-          </div>
+          <Receipt className="h-5 w-5 text-blue-500 shrink-0" />
           <div>
-            <p className="font-bold text-[var(--color-text-primary)]">{invoice.label} Invoice</p>
-            <p className="text-xs text-[var(--color-text-muted)]">
-              {invoice.orders.length} order{invoice.orders.length !== 1 ? 's' : ''} · GH₵{fmt(grandTotal)} total
-              {totalShipping > 0 && ` (incl. GH₵${fmt(totalShipping)} shipping)`}
-            </p>
+            <p className="font-bold text-gray-900">{invoice.label}</p>
+            <p className="text-xs text-gray-500">{orders.length} order{orders.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          {hasPendingShipping && (
-            <span className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
-              <AlertCircle className="h-3 w-3" /> Shipping due
-            </span>
-          )}
-          {allDelivered && (
-            <span className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--color-success-light)] text-[var(--color-success)] text-xs font-semibold">
-              <CheckCircle2 className="h-3 w-3" /> Completed
-            </span>
-          )}
-          {open ? <ChevronUp className="h-4 w-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="h-4 w-4 text-[var(--color-text-muted)]" />}
+          <p className="text-sm font-bold text-gray-900 tabular-nums">GH₵{fmt(grandTotal)}</p>
+          {open
+            ? <ChevronUp className="h-4 w-4 text-[var(--color-text-muted)]" />
+            : <ChevronDown className="h-4 w-4 text-[var(--color-text-muted)]" />}
         </div>
       </button>
 
       {open && (
         <div className="border-t border-[var(--color-border)] p-4 space-y-3">
-          {invoice.orders.map(order => (
-            <OrderCard key={order.id} order={order} slug={slug} onUpdate={onUpdate} />
+          {orders.map(order => (
+            <OrderCard key={order.id} order={order} slug={slug} onUpdate={onUpdate2} />
           ))}
           <div className="rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] p-3 text-sm space-y-1.5">
             <div className="flex justify-between text-[var(--color-text-muted)]">
@@ -406,7 +432,7 @@ export default function OrdersContent({ slug }: { slug: string }) {
         payment_reference, momo_number,
         order_items (
           id, quantity,
-          products ( name, price )
+          products ( name, price, image_url )
         )
       `)
       .eq('customer_id', store.customerId)
