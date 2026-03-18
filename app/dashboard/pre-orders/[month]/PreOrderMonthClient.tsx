@@ -4,7 +4,7 @@ import { useState } from 'react'
 import {
   Package, Hash, Phone, MapPin, ChevronDown, ChevronRight,
   ScanBarcode, AlertCircle, Clock, CheckCircle2,
-  MessageCircle, Layers, Receipt,
+  MessageCircle, Layers, Receipt, ShoppingBag,
 } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -21,8 +21,6 @@ interface CustomerRow {
   shippingNote: string | null
   momoNumber: string | null
   paymentRef: string | null
-  // added by page.tsx when building groups
-  productName?: string
 }
 
 interface ProductGroup {
@@ -180,13 +178,11 @@ function ProductCard({ group }: { group: ProductGroup }) {
           <div className="shrink-0 hidden sm:block">
             {group.trackingNumber ? (
               <span className="inline-flex items-center gap-2 font-mono text-sm font-bold bg-[var(--color-success-light)] border border-[var(--color-success)]/20 text-[var(--color-success)] px-3 py-1.5 rounded-lg">
-                <ScanBarcode className="h-3.5 w-3.5 shrink-0" />
-                {group.trackingNumber}
+                <ScanBarcode className="h-3.5 w-3.5 shrink-0" />{group.trackingNumber}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-warning)] border border-dashed border-[var(--color-warning)]/40 bg-[var(--color-warning-light)] px-2.5 py-1.5 rounded-lg">
-                <Hash className="h-3.5 w-3.5" />
-                No tracking
+                <Hash className="h-3.5 w-3.5" />No tracking
               </span>
             )}
           </div>
@@ -232,29 +228,44 @@ function ProductCard({ group }: { group: ProductGroup }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB 2 — SHIPPING INVOICES (grouped by customer)
+// SHARED: Invoice card used by both Product Invoices and Shipping Invoices
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface ShippingInvoiceLine {
+interface InvoiceLine {
   orderId: string
   productName: string
   quantity: number
   unitPrice: number
-  shippingFee: number
-  shippingNote: string | null
+  amount: number        // productTotal for product invoice, shippingFee for shipping invoice
+  note: string | null
 }
 
 interface CustomerInvoice {
   name: string
   contact: string
   location: string
-  lines: ShippingInvoiceLine[]
-  totalShipping: number
+  lines: InvoiceLine[]
+  total: number
 }
 
-function buildWhatsappMessage(invoice: CustomerInvoice, monthLabel: string): string {
+function buildProductWhatsapp(invoice: CustomerInvoice, monthLabel: string): string {
   const itemLines = invoice.lines
-    .map(l => `  • ${l.productName} × ${l.quantity} — Shipping: GH₵${fmt(l.shippingFee)}`)
+    .map(l => `  • ${l.productName} × ${l.quantity} — GH₵${fmt(l.amount)}`)
+    .join('\n')
+
+  const msg =
+    `Hello ${invoice.name}! 👋\n\n` +
+    `Here's your product payment invoice for the *${monthLabel}* batch:\n\n` +
+    `${itemLines}\n\n` +
+    `💰 *Total due: GH₵${fmt(invoice.total)}*\n\n` +
+    `Please send GH₵${fmt(invoice.total)} via MoMo to confirm your order. Thank you! 🙏`
+
+  return `https://wa.me/${invoice.contact.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
+}
+
+function buildShippingWhatsapp(invoice: CustomerInvoice, monthLabel: string): string {
+  const itemLines = invoice.lines
+    .map(l => `  • ${l.productName} × ${l.quantity} — Shipping: GH₵${fmt(l.amount)}`)
     .join('\n')
 
   const msg =
@@ -262,29 +273,55 @@ function buildWhatsappMessage(invoice: CustomerInvoice, monthLabel: string): str
     `Your items from the *${monthLabel}* batch have arrived! ` +
     `Here's your shipping invoice:\n\n` +
     `${itemLines}\n\n` +
-    `💰 *Total shipping due: GH₵${fmt(invoice.totalShipping)}*\n\n` +
-    `Please send GH₵${fmt(invoice.totalShipping)} via MoMo to complete your delivery. Thank you! 🙏`
+    `💰 *Total shipping due: GH₵${fmt(invoice.total)}*\n\n` +
+    `Please send GH₵${fmt(invoice.total)} via MoMo to complete your delivery. Thank you! 🙏`
 
   return `https://wa.me/${invoice.contact.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
 }
 
-function ShippingInvoiceCard({
+function InvoiceCard({
   invoice,
   monthLabel,
+  accentColor,
+  buildWhatsapp,
+  amountLabel,
 }: {
   invoice: CustomerInvoice
   monthLabel: string
+  accentColor: 'blue' | 'orange'
+  buildWhatsapp: (inv: CustomerInvoice, month: string) => string
+  amountLabel: string
 }) {
   const [expanded, setExpanded] = useState(true)
   const hasContact = !!invoice.contact
 
+  const accent = {
+    blue: {
+      border: 'border-blue-200',
+      header: 'bg-blue-50',
+      avatar: 'bg-blue-100 text-blue-700',
+      totalText: 'text-blue-600',
+      colHeader: 'bg-blue-50/50',
+      totalRow: 'bg-blue-50',
+      hoverBtn: 'hover:bg-blue-100',
+    },
+    orange: {
+      border: 'border-orange-200',
+      header: 'bg-orange-50',
+      avatar: 'bg-orange-100 text-orange-700',
+      totalText: 'text-orange-600',
+      colHeader: 'bg-orange-50/50',
+      totalRow: 'bg-orange-50',
+      hoverBtn: 'hover:bg-orange-100',
+    },
+  }[accentColor]
+
   return (
-    <div className="rounded-2xl border border-orange-200 bg-[var(--color-card)] shadow-sm overflow-hidden">
+    <div className={`rounded-2xl border ${accent.border} bg-[var(--color-card)] shadow-sm overflow-hidden`}>
 
       {/* Customer header */}
-      <div className="px-5 py-4 bg-orange-50 flex items-center gap-4">
-        {/* Avatar */}
-        <div className="h-10 w-10 rounded-full bg-orange-200 flex items-center justify-center text-orange-700 font-bold text-sm shrink-0">
+      <div className={`px-5 py-4 ${accent.header} flex items-center gap-4`}>
+        <div className={`h-10 w-10 rounded-full ${accent.avatar} flex items-center justify-center font-bold text-sm shrink-0`}>
           {invoice.name.charAt(0).toUpperCase()}
         </div>
 
@@ -304,18 +341,17 @@ function ShippingInvoiceCard({
           </div>
         </div>
 
-        {/* Total + WhatsApp */}
         <div className="shrink-0 flex items-center gap-3">
           <div className="text-right">
-            <p className="text-xs text-[var(--color-text-muted)]">Total shipping</p>
-            <p className="text-lg font-bold text-orange-600 tabular-nums">
-              GH₵{fmt(invoice.totalShipping)}
+            <p className="text-xs text-[var(--color-text-muted)]">{amountLabel}</p>
+            <p className={`text-lg font-bold tabular-nums ${accent.totalText}`}>
+              GH₵{fmt(invoice.total)}
             </p>
           </div>
 
           {hasContact ? (
             <a
-              href={buildWhatsappMessage(invoice, monthLabel)}
+              href={buildWhatsapp(invoice, monthLabel)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors"
@@ -329,7 +365,7 @@ function ShippingInvoiceCard({
 
           <button
             onClick={() => setExpanded(!expanded)}
-            className="p-1.5 rounded-lg hover:bg-orange-100 transition-colors text-[var(--color-text-muted)]"
+            className={`p-1.5 rounded-lg transition-colors text-[var(--color-text-muted)] ${accent.hoverBtn}`}
           >
             {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </button>
@@ -339,34 +375,32 @@ function ShippingInvoiceCard({
       {/* Line items */}
       {expanded && (
         <div className="divide-y divide-[var(--color-border)]">
-          {/* Column headers */}
-          <div className="grid grid-cols-[1fr_60px_80px] gap-x-3 px-5 py-2 bg-[var(--color-surface)]">
+          <div className={`grid grid-cols-[1fr_60px_80px] gap-x-3 px-5 py-2 ${accent.colHeader}`}>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Product</span>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] text-center">Qty</span>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] text-right">Shipping</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] text-right">Amount</span>
           </div>
 
           {invoice.lines.map((line) => (
             <div key={line.orderId} className="grid grid-cols-[1fr_60px_80px] gap-x-3 items-center px-5 py-3 hover:bg-[var(--color-surface)] transition-colors">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{line.productName}</p>
-                {line.shippingNote && (
-                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">📝 {line.shippingNote}</p>
+                {line.note && (
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">📝 {line.note}</p>
                 )}
               </div>
               <p className="text-sm text-[var(--color-text-muted)] text-center tabular-nums">{line.quantity}</p>
-              <p className="text-sm font-bold text-orange-600 text-right tabular-nums">
-                GH₵{fmt(line.shippingFee)}
+              <p className={`text-sm font-bold text-right tabular-nums ${accent.totalText}`}>
+                GH₵{fmt(line.amount)}
               </p>
             </div>
           ))}
 
-          {/* Total row */}
-          <div className="grid grid-cols-[1fr_60px_80px] gap-x-3 items-center px-5 py-3 bg-orange-50">
+          <div className={`grid grid-cols-[1fr_60px_80px] gap-x-3 items-center px-5 py-3 ${accent.totalRow}`}>
             <p className="text-sm font-bold text-[var(--color-text-primary)]">Total due</p>
             <span />
-            <p className="text-sm font-bold text-orange-600 text-right tabular-nums">
-              GH₵{fmt(invoice.totalShipping)}
+            <p className={`text-sm font-bold text-right tabular-nums ${accent.totalText}`}>
+              GH₵{fmt(invoice.total)}
             </p>
           </div>
         </div>
@@ -375,9 +409,23 @@ function ShippingInvoiceCard({
   )
 }
 
+// ── Shared empty state ────────────────────────────────────────────────────────
+
+function EmptyInvoices({ icon, title, subtitle }: { icon: React.ReactNode; title: string; subtitle: string }) {
+  return (
+    <div className="rounded-2xl border-2 border-dashed border-[var(--color-border)] p-10 text-center">
+      <div className="flex justify-center mb-3">{icon}</div>
+      <p className="text-sm font-medium text-[var(--color-text-primary)]">{title}</p>
+      <p className="text-xs text-[var(--color-text-muted)] mt-1">{subtitle}</p>
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN EXPORT
 // ─────────────────────────────────────────────────────────────────────────────
+
+type TabId = 'products' | 'product-invoices' | 'shipping-invoices'
 
 export default function PreOrderMonthClient({
   groups,
@@ -386,7 +434,7 @@ export default function PreOrderMonthClient({
   groups: ProductGroup[]
   monthLabel: string
 }) {
-  const [tab, setTab] = useState<'products' | 'invoices'>('products')
+  const [tab, setTab] = useState<TabId>('products')
 
   // Summary counts
   const totalOrders   = groups.reduce((s, g) => s + g.customers.length, 0)
@@ -394,38 +442,58 @@ export default function PreOrderMonthClient({
   const totalPending  = groups.reduce((s, g) => s + g.customers.filter(c => c.status === 'pending').length, 0)
   const needsTracking = groups.filter(g => !g.trackingNumber).length
 
-  // Build customer invoices from orders that have shipping_billed status
-  // (shippingFee > 0 and status is shipping_billed)
-  const invoiceMap = new Map<string, CustomerInvoice>()
+  // ── Build product invoices (pending status — haven't paid for product yet) ──
+  const productInvoiceMap = new Map<string, CustomerInvoice>()
+  for (const group of groups) {
+    for (const c of group.customers) {
+      if (c.status !== 'pending') continue
+      const key = c.name
+      if (!productInvoiceMap.has(key)) {
+        productInvoiceMap.set(key, { name: c.name, contact: c.contact, location: c.location, lines: [], total: 0 })
+      }
+      const inv = productInvoiceMap.get(key)!
+      const amount = c.unitPrice * c.quantity
+      inv.lines.push({ orderId: c.orderId, productName: group.productName, quantity: c.quantity, unitPrice: c.unitPrice, amount, note: null })
+      inv.total += amount
+    }
+  }
+  const productInvoices = Array.from(productInvoiceMap.values()).sort((a, b) => a.name.localeCompare(b.name))
 
+  // ── Build shipping invoices (shipping_billed — fee set, awaiting payment) ───
+  const shippingInvoiceMap = new Map<string, CustomerInvoice>()
   for (const group of groups) {
     for (const c of group.customers) {
       if (c.status !== 'shipping_billed' || !c.shippingFee) continue
-
-      if (!invoiceMap.has(c.name)) {
-        invoiceMap.set(c.name, {
-          name: c.name,
-          contact: c.contact,
-          location: c.location,
-          lines: [],
-          totalShipping: 0,
-        })
+      const key = c.name
+      if (!shippingInvoiceMap.has(key)) {
+        shippingInvoiceMap.set(key, { name: c.name, contact: c.contact, location: c.location, lines: [], total: 0 })
       }
-
-      const inv = invoiceMap.get(c.name)!
-      inv.lines.push({
-        orderId: c.orderId,
-        productName: group.productName,
-        quantity: c.quantity,
-        unitPrice: c.unitPrice,
-        shippingFee: c.shippingFee,
-        shippingNote: c.shippingNote,
-      })
-      inv.totalShipping += c.shippingFee
+      const inv = shippingInvoiceMap.get(key)!
+      inv.lines.push({ orderId: c.orderId, productName: group.productName, quantity: c.quantity, unitPrice: c.unitPrice, amount: c.shippingFee, note: c.shippingNote })
+      inv.total += c.shippingFee
     }
   }
+  const shippingInvoices = Array.from(shippingInvoiceMap.values()).sort((a, b) => a.name.localeCompare(b.name))
 
-  const invoices = Array.from(invoiceMap.values()).sort((a, b) => a.name.localeCompare(b.name))
+  const tabs: { id: TabId; label: string; icon: React.ReactNode; badge?: number }[] = [
+    {
+      id: 'products',
+      label: 'Products',
+      icon: <Layers className="h-4 w-4" />,
+    },
+    {
+      id: 'product-invoices',
+      label: 'Product Invoices',
+      icon: <ShoppingBag className="h-4 w-4" />,
+      badge: productInvoices.length || undefined,
+    },
+    {
+      id: 'shipping-invoices',
+      label: 'Shipping Invoices',
+      icon: <Receipt className="h-4 w-4" />,
+      badge: shippingInvoices.length || undefined,
+    },
+  ]
 
   if (groups.length === 0) {
     return (
@@ -476,65 +544,90 @@ export default function PreOrderMonthClient({
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-[var(--color-border)]">
-        <button
-          onClick={() => setTab('products')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-all ${
-            tab === 'products'
-              ? 'border-[var(--color-brand)] text-[var(--color-brand)]'
-              : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
-          }`}
-        >
-          <Layers className="h-4 w-4" />
-          Products
-        </button>
-        <button
-          onClick={() => setTab('invoices')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-all ${
-            tab === 'invoices'
-              ? 'border-[var(--color-brand)] text-[var(--color-brand)]'
-              : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
-          }`}
-        >
-          <Receipt className="h-4 w-4" />
-          Shipping Invoices
-          {invoices.length > 0 && (
-            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-              tab === 'invoices'
-                ? 'bg-[var(--color-brand)] text-white'
-                : 'bg-orange-100 text-orange-700'
-            }`}>
-              {invoices.length}
-            </span>
-          )}
-        </button>
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-all whitespace-nowrap ${
+              tab === t.id
+                ? 'border-[var(--color-brand)] text-[var(--color-brand)]'
+                : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
+            }`}
+          >
+            {t.icon}
+            <span className="hidden sm:inline">{t.label}</span>
+            {t.badge !== undefined && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                tab === t.id ? 'bg-[var(--color-brand)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-muted)]'
+              }`}>
+                {t.badge}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Tab: Products */}
       {tab === 'products' && (
         <div className="space-y-4">
-          {groups.map((g) => <ProductCard key={g.productId} group={g} />)}
+          {groups.map(g => <ProductCard key={g.productId} group={g} />)}
+        </div>
+      )}
+
+      {/* Tab: Product Invoices */}
+      {tab === 'product-invoices' && (
+        <div className="space-y-4">
+          {productInvoices.length === 0 ? (
+            <EmptyInvoices
+              icon={<ShoppingBag className="h-10 w-10 text-[var(--color-text-muted)]" />}
+              title="No pending product payments"
+              subtitle="All customers have paid for their products."
+            />
+          ) : (
+            <>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {productInvoices.length} customer{productInvoices.length !== 1 ? 's' : ''} yet to pay for their products —
+                tap WhatsApp to send each their full invoice.
+              </p>
+              {productInvoices.map(inv => (
+                <InvoiceCard
+                  key={inv.name}
+                  invoice={inv}
+                  monthLabel={monthLabel}
+                  accentColor="blue"
+                  buildWhatsapp={buildProductWhatsapp}
+                  amountLabel="Product total due"
+                />
+              ))}
+            </>
+          )}
         </div>
       )}
 
       {/* Tab: Shipping Invoices */}
-      {tab === 'invoices' && (
+      {tab === 'shipping-invoices' && (
         <div className="space-y-4">
-          {invoices.length === 0 ? (
-            <div className="rounded-2xl border-2 border-dashed border-[var(--color-border)] p-10 text-center">
-              <Receipt className="h-10 w-10 text-[var(--color-text-muted)] mx-auto mb-3" />
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">No shipping invoices yet</p>
-              <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                Customers appear here once their orders are marked <span className="font-semibold">Shipping Billed</span>.
-              </p>
-            </div>
+          {shippingInvoices.length === 0 ? (
+            <EmptyInvoices
+              icon={<Receipt className="h-10 w-10 text-[var(--color-text-muted)]" />}
+              title="No shipping invoices yet"
+              subtitle={`Customers appear here once their orders are marked Shipping Billed.`}
+            />
           ) : (
             <>
               <p className="text-sm text-[var(--color-text-muted)]">
-                {invoices.length} customer{invoices.length !== 1 ? 's' : ''} with shipping due —
-                tap WhatsApp to send each their full invoice in one message.
+                {shippingInvoices.length} customer{shippingInvoices.length !== 1 ? 's' : ''} with shipping due —
+                tap WhatsApp to send each their full invoice.
               </p>
-              {invoices.map((inv) => (
-                <ShippingInvoiceCard key={inv.name} invoice={inv} monthLabel={monthLabel} />
+              {shippingInvoices.map(inv => (
+                <InvoiceCard
+                  key={inv.name}
+                  invoice={inv}
+                  monthLabel={monthLabel}
+                  accentColor="orange"
+                  buildWhatsapp={buildShippingWhatsapp}
+                  amountLabel="Total shipping due"
+                />
               ))}
             </>
           )}
