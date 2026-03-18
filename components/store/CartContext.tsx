@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { createCustomerClient } from '@/lib/supabase/customer-client'  // ← was createClient
 import { useStore } from '@/components/store/StoreContext'
 
 interface CartItem {
@@ -58,7 +58,6 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
   const [loading, setLoading] = useState(true)
   const store = useStore()
 
-  // Cache cart id so addToCart doesn't need to re-fetch it every time
   const cartIdRef = useRef<string | null>(null)
 
   const setItems = (items: CartItem[]) => {
@@ -75,12 +74,12 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
     }
 
     try {
-      const supabase = createClient()
+      const supabase = createCustomerClient(slug)  // ← customer session
       const { data } = await supabase
         .from('carts')
         .select(CART_SELECT)
         .eq('customer_id', store.customerId)
-        .maybeSingle()                          // ← maybeSingle: no error if no row
+        .maybeSingle()
 
       if (data) {
         cartIdRef.current = data.id
@@ -94,9 +93,8 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
     } finally {
       setLoading(false)
     }
-  }, [store.customerId, store.storeId])
+  }, [store.customerId, store.storeId, slug])
 
-  // Run when auth resolves — depend only on customerId, not store.loading
   useEffect(() => {
     if (store.loading) return
     loadCart()
@@ -107,9 +105,8 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
     if (cartIdRef.current) return cartIdRef.current
     if (!store.customerId || !store.storeId) return null
 
-    const supabase = createClient()
+    const supabase = createCustomerClient(slug)  // ← customer session
 
-    // Try to fetch existing first
     const { data: existing } = await supabase
       .from('carts')
       .select('id')
@@ -122,7 +119,6 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
       return existing.id
     }
 
-    // Create new cart
     const { data: created } = await supabase
       .from('carts')
       .insert({ customer_id: store.customerId, store_id: store.storeId })
@@ -133,7 +129,7 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
     return cartIdRef.current
   }
 
-  // ── addToCart — optimistic update first, sync in background ───────────────
+  // ── addToCart ─────────────────────────────────────────────────────────────
   const addToCart = async (
     productId: string,
     productData?: { id: string; name: string; price: number; image_url: string | null }
@@ -143,7 +139,7 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
       return
     }
 
-    // Optimistic update immediately — no waiting
+    // Optimistic update immediately
     if (productData) {
       setCartItems((prev) => {
         const existing = prev.find((i) => i.product_id === productId)
@@ -168,12 +164,11 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
       })
     }
 
-    const supabase = createClient()
+    const supabase = createCustomerClient(slug)  // ← customer session
     try {
       const cartId = await ensureCartId()
       if (!cartId) return
 
-      // Check if item already exists to increment vs insert
       const { data: existingItem } = await supabase
         .from('cart_items')
         .select('id, quantity')
@@ -192,7 +187,6 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
           .insert({ cart_id: cartId, product_id: productId, quantity: 1 })
       }
 
-      // Refresh to get real ids (replaces optimistic entry)
       await loadCart()
     } catch (error) {
       console.error('Add to cart error:', error)
@@ -200,7 +194,7 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
     }
   }
 
-  // ── updateQuantity — optimistic ───────────────────────────────────────────
+  // ── updateQuantity ────────────────────────────────────────────────────────
   const updateQuantity = async (cartItemId: string, quantity: number) => {
     if (!store.customerId) return
 
@@ -213,7 +207,7 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
       return updated
     })
 
-    const supabase = createClient()
+    const supabase = createCustomerClient(slug)  // ← customer session
     try {
       if (quantity <= 0) {
         await supabase.from('cart_items').delete().eq('id', cartItemId)
@@ -226,7 +220,7 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
     }
   }
 
-  // ── removeFromCart — optimistic ───────────────────────────────────────────
+  // ── removeFromCart ────────────────────────────────────────────────────────
   const removeFromCart = async (cartItemId: string) => {
     if (!store.customerId) return
 
@@ -236,7 +230,7 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
       return updated
     })
 
-    const supabase = createClient()
+    const supabase = createCustomerClient(slug)  // ← customer session
     try {
       await supabase.from('cart_items').delete().eq('id', cartItemId)
     } catch (error) {
@@ -245,13 +239,13 @@ export function CartProvider({ children, slug }: { children: ReactNode; slug: st
     }
   }
 
-  // ── clearCart — optimistic ────────────────────────────────────────────────
+  // ── clearCart ─────────────────────────────────────────────────────────────
   const clearCart = async () => {
     if (!store.customerId) return
 
     setItems([])
 
-    const supabase = createClient()
+    const supabase = createCustomerClient(slug)  // ← customer session
     try {
       const cartId = cartIdRef.current
       if (cartId) {

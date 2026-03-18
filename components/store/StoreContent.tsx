@@ -6,9 +6,8 @@ import Link from 'next/link'
 
 import { useCart } from '@/components/store/CartContext'
 import { useStore } from '@/components/store/StoreContext'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { createCustomerClient } from '@/lib/supabase/customer-client'
+import { createCustomerClient } from '@/lib/supabase/customer-client'  // ← only this client
 
 interface Product {
   id: string
@@ -83,17 +82,17 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
   const [showCart, setShowCart] = useState(false)
   const [pendingOrderCount, setPendingOrderCount] = useState(0)
 
-  // Fetch orders awaiting shipping payment from customer
+  // ← use createCustomerClient so RLS sees the customer session
   useEffect(() => {
     if (!store.customerId) { setPendingOrderCount(0); return }
-    const supabase = createClient()
+    const supabase = createCustomerClient(slug)
     supabase
       .from('orders')
       .select('id', { count: 'exact', head: true })
       .eq('customer_id', store.customerId)
       .eq('status', 'shipping_billed')
       .then(({ count }: { count: number | null }) => setPendingOrderCount(count || 0))
-  }, [store.customerId])
+  }, [store.customerId, slug])
 
   const handleLogout = useCallback(async () => {
     try {
@@ -138,52 +137,31 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
             <div className="flex items-center gap-1.5 shrink-0">
               {isLoggedIn && customerName ? (
                 <>
-                  {/* Profile pill */}
-                  <Link
-                    href={`/store/${slug}/profile`}
-                    className="flex items-center gap-1.5 px-2 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
-                  >
-                    <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center text-[11px] font-bold text-blue-700 shrink-0 overflow-hidden">
-                      {customerAvatar
-                        ? <img src={customerAvatar} alt={customerName} className="w-full h-full object-cover" />
-                        : (customerName?.charAt(0).toUpperCase() || <User className="h-3.5 w-3.5" />)
-                      }
-                    </div>
-                    <span className="hidden sm:block max-w-[100px] truncate">{customerName}</span>
-                  </Link>
-
-                  {/* My Orders icon — badge if shipping payment due */}
                   <Link
                     href={`/store/${slug}/orders`}
-                    className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors"
-                    title="My Orders"
+                    className="relative flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold text-gray-700 hover:text-blue-600 rounded-xl hover:bg-blue-50 transition-colors"
                   >
-                    <Package className="h-5 w-5 text-gray-600" />
+                    My Orders
                     {pendingOrderCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5 animate-pulse">
+                      <span className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold">
                         {pendingOrderCount}
                       </span>
                     )}
                   </Link>
-
-                  {/* Cart */}
-                  <button
-                    onClick={() => setShowCart(true)}
-                    className="relative p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"
+                  <Link
+                    href={`/store/${slug}/profile`}
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold text-gray-700 hover:text-blue-600 rounded-xl hover:bg-blue-50 transition-colors"
                   >
-                    <ShoppingCart className="h-5 w-5 text-gray-700" />
-                    {cartCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                        {cartCount}
-                      </span>
+                    {customerAvatar ? (
+                      <img src={customerAvatar} alt={customerName} className="h-6 w-6 rounded-full object-cover" />
+                    ) : (
+                      <User className="h-4 w-4" />
                     )}
-                  </button>
-
-                  {/* Divider + Logout — isolated on the right */}
-                  <div className="w-px h-6 bg-gray-200 mx-1.5" />
+                    <span className="hidden sm:inline max-w-[80px] truncate">{customerName}</span>
+                  </Link>
                   <button
                     onClick={handleLogout}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    className="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                     title="Logout"
                   >
                     <LogOut className="h-4 w-4" />
@@ -191,7 +169,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                 </>
               ) : (
                 <>
-                  <Link href={`/store/${slug}/login`} className="px-2.5 py-1.5 text-xs sm:text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">
+                  <Link href={`/store/${slug}/login`} className="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                     Login
                   </Link>
                   <Link href={`/store/${slug}/register`} className="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">
@@ -199,6 +177,17 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                   </Link>
                 </>
               )}
+              <button
+                onClick={() => setShowCart(true)}
+                className="relative p-2 rounded-xl text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full bg-blue-600 text-white text-[10px] font-bold">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
 
@@ -249,68 +238,63 @@ function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
   const total = cartItems.reduce((s, i) => s + i.quantity * i.products.price, 0)
   const fmt = (n: number) => n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
 
-  // ─────────────────────────────────────────────────────────────────────────────
-// PATCH: replace the handleCheckout function inside CartDrawer in StoreContent.tsx
-// Find the existing handleCheckout and replace it with this version.
-// ─────────────────────────────────────────────────────────────────────────────
+  const handleCheckout = async () => {
+    if (!store.customerId) {
+      window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
+      return
+    }
 
-const handleCheckout = async () => {
-  if (!store.customerId) {
-    window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
-    return
-  }
+    if (cartItems.length === 0) {
+      toast.error('Your cart is empty')
+      return
+    }
 
-  if (cartItems.length === 0) {
-    toast.error('Your cart is empty')
-    return
-  }
+    setPlacing(true)
+    // ← use createCustomerClient so the insert is authenticated as the customer
+    const supabase = createCustomerClient(slug)
 
-  setPlacing(true)
-  const supabase = createClient()
+    // 1. Create the order
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        customer_id: store.customerId,
+        store_id: store.storeId!,
+        total,
+        status: 'pending',
+      })
+      .select('id')
+      .single()
 
-  // 1. Create the order
-  const { data: order, error: orderError } = await supabase
-    .from('orders')
-    .insert({
-      customer_id: store.customerId,
-      store_id: store.storeId!,
-      total,
-      status: 'pending',
-    })
-    .select('id')
-    .single()
+    if (orderError || !order) {
+      toast.error('Failed to place order')
+      setPlacing(false)
+      return
+    }
 
-  if (orderError || !order) {
-    toast.error('Failed to place order')
+    // 2. Insert order_items
+    const orderItems = cartItems.map((item) => ({
+      order_id: order.id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      price: item.products.price,
+    }))
+
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(orderItems)
+
+    if (itemsError) {
+      console.error('Failed to insert order_items:', itemsError)
+      toast.error('Order placed but items may be missing. Contact support.')
+      setPlacing(false)
+      return
+    }
+
+    // 3. Clear cart and show success
+    clearCart()
+    setOrderPlaced(true)
     setPlacing(false)
-    return
   }
-
-  // 2. Insert order_items — one row per cart item
-  const orderItems = cartItems.map((item) => ({
-    order_id: order.id,
-    product_id: item.product_id,
-    quantity: item.quantity,
-    price: item.products.price,
-  }))
-
-  const { error: itemsError } = await supabase
-    .from('order_items')
-    .insert(orderItems)
-
-  if (itemsError) {
-    console.error('Failed to insert order_items:', itemsError)
-    // Order was created — don't block the user, but log it
-    toast.error('Order placed but items may be missing. Contact support.')
-    setPlacing(false)
-    return
-  }
-
-  // 3. Clear cart and show success
-  clearCart()
-  setOrderPlaced(true)
-  setPlacing(false)
-}
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -337,99 +321,83 @@ const handleCheckout = async () => {
                   you'll need to <span className="font-semibold text-orange-600">pay the shipping fee</span> before delivery.
                 </p>
               </div>
-              <div className="w-full bg-orange-50 border border-orange-200 rounded-xl p-4 text-left">
-                <p className="text-xs font-bold text-orange-700 uppercase tracking-wide mb-1">What happens next?</p>
-                <ol className="text-sm text-orange-800 space-y-1.5 list-none">
-                  <li className="flex items-start gap-2"><span className="font-bold shrink-0">1.</span>Importer orders your items from supplier</li>
-                  <li className="flex items-start gap-2"><span className="font-bold shrink-0">2.</span>Items arrive — shipping fee is billed</li>
-                  <li className="flex items-start gap-2"><span className="font-bold shrink-0 text-orange-600">3.</span><span>You pay via MoMo — <span className="font-semibold">check the 📦 Orders icon</span> in the menu</span></li>
-                  <li className="flex items-start gap-2"><span className="font-bold shrink-0">4.</span>Importer verifies and delivers your order</li>
-                </ol>
-              </div>
               <Link
                 href={`/store/${slug}/orders`}
                 onClick={onClose}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
+                className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
               >
-                <Package className="h-4 w-4" />
-                Track My Order
+                View My Orders
               </Link>
-              <button
-                onClick={onClose}
-                className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Continue shopping
-              </button>
             </div>
           </div>
         ) : (
           <>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <div>
-            <h2 className="text-base font-bold text-gray-900">Shopping Cart</h2>
-            <p className="text-xs text-gray-500">{cartCount} item{cartCount !== 1 ? 's' : ''}</p>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4">
-          {cartCount === 0 ? (
-            <div className="text-center py-16">
-              <ShoppingCart className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-              <p className="text-sm text-gray-500">Your cart is empty</p>
-              <button onClick={onClose} className="mt-4 text-sm text-blue-600 font-medium">Continue shopping</button>
+            {/* Cart header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">
+                Cart <span className="text-gray-400 font-normal text-sm">({cartCount} item{cartCount !== 1 ? 's' : ''})</span>
+              </h2>
+              <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+                <X className="h-5 w-5" />
+              </button>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {cartItems.map((item) => (
-                <div key={item.id} className="flex gap-3 p-3 bg-gray-50 rounded-xl">
-                  <div className="w-14 h-14 rounded-lg overflow-hidden bg-white border border-gray-100 shrink-0">
-                    {item.products.image_url
-                      ? <img src={item.products.image_url} alt={item.products.name} className="w-full h-full object-cover" />
-                      : <div className="w-full h-full flex items-center justify-center"><Package className="h-6 w-6 text-gray-300" /></div>
-                    }
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 line-clamp-1">{item.products.name}</p>
-                    <p className="text-sm font-bold text-blue-600">GH₵{fmt(item.products.price)}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="w-6 h-6 rounded-full bg-white border border-gray-200 text-xs font-bold hover:bg-gray-50 flex items-center justify-center">-</button>
-                      <span className="text-sm font-semibold w-4 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="w-6 h-6 rounded-full bg-white border border-gray-200 text-xs font-bold hover:bg-gray-50 flex items-center justify-center">+</button>
-                      <button onClick={() => removeFromCart(item.id)} className="ml-1 text-red-400 hover:text-red-600">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-sm font-bold shrink-0 tabular-nums">GH₵{fmt(item.quantity * item.products.price)}</p>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {cartCount === 0 ? (
+                <div className="text-center py-16">
+                  <ShoppingCart className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm text-gray-500">Your cart is empty</p>
+                  <button onClick={onClose} className="mt-4 text-sm text-blue-600 font-medium">Continue shopping</button>
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-3">
+                  {cartItems.map((item) => (
+                    <div key={item.id} className="flex gap-3 p-3 bg-gray-50 rounded-xl">
+                      <div className="w-14 h-14 rounded-lg overflow-hidden bg-white border border-gray-100 shrink-0">
+                        {item.products.image_url
+                          ? <img src={item.products.image_url} alt={item.products.name} className="w-full h-full object-cover" />
+                          : <div className="w-full h-full flex items-center justify-center"><Package className="h-6 w-6 text-gray-300" /></div>
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 line-clamp-1">{item.products.name}</p>
+                        <p className="text-sm font-bold text-blue-600">GH₵{fmt(item.products.price)}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="h-6 w-6 flex items-center justify-center rounded-lg bg-gray-200 hover:bg-gray-300 text-xs font-bold transition-colors">−</button>
+                          <span className="text-sm font-semibold w-4 text-center">{item.quantity}</span>
+                          <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="h-6 w-6 flex items-center justify-center rounded-lg bg-gray-200 hover:bg-gray-300 text-xs font-bold transition-colors">+</button>
+                          <button onClick={() => removeFromCart(item.id)} className="ml-auto text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="h-4 w-4" /></button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {cartCount > 0 && (
-          <div className="p-4 border-t border-gray-100 bg-gray-50 safe-area-bottom">
-            <div className="flex justify-between mb-3">
-              <span className="font-semibold text-gray-900">Total</span>
-              <span className="text-xl font-bold text-blue-600 tabular-nums">GH₵{fmt(total)}</span>
-            </div>
-            <p className="text-xs text-gray-400 mb-3 text-center">
-              Shipping fee will be added once your items arrive
-            </p>
-            <button
-              onClick={handleCheckout}
-              disabled={placing}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold rounded-xl transition-colors text-sm active:scale-98 flex items-center justify-center gap-2"
-            >
-              {placing ? (
-                <><div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Placing order…</>
-              ) : 'Place Order'}
-            </button>
-          </div>
-        )}
+            {/* Cart footer */}
+            {cartCount > 0 && (
+              <div className="p-4 border-t border-gray-100 space-y-3">
+                <div className="flex justify-between text-sm font-semibold text-gray-900">
+                  <span>Subtotal</span>
+                  <span>GH₵{fmt(total)}</span>
+                </div>
+                <p className="text-xs text-orange-600 bg-orange-50 rounded-lg px-3 py-2">
+                  Shipping fee will be added once your items arrive.
+                </p>
+                <button
+                  onClick={handleCheckout}
+                  disabled={placing}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {placing ? (
+                    <><div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Placing order…</>
+                  ) : (
+                    <>Place Order · GH₵{fmt(total)}</>
+                  )}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
