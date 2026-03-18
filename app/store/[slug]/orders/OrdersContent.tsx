@@ -5,12 +5,13 @@ import Link from 'next/link'
 import {
   ArrowLeft, Clock, Truck, AlertCircle, CheckCircle2,
   DollarSign, Loader2, ShoppingBag, Package, Receipt,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, XCircle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useStore } from '@/components/store/StoreContext'
 import { toast } from 'sonner'
 import { customerConfirmShippingPaymentAction } from '@/app/dashboard/orders/actions'
+import { cancelOrderAction } from './actions'
 
 interface OrderItem {
   id: string
@@ -32,8 +33,8 @@ interface Order {
 }
 
 interface MonthInvoice {
-  key: string   // "2025-03"
-  label: string // "March 2025"
+  key: string
+  label: string
   orders: Order[]
 }
 
@@ -73,7 +74,7 @@ function monthLabel(key: string) {
 const fmt = (n: number) => n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
 const nv = (v: any) => parseFloat(String(v || 0)) || 0
 
-// ── Single order card inside invoice ─────────────────────────────────────────
+// ── Single order card ─────────────────────────────────────────────────────────
 
 function OrderCard({ order, slug, onUpdate }: {
   order: Order
@@ -83,12 +84,15 @@ function OrderCard({ order, slug, onUpdate }: {
   const [expanded, setExpanded] = useState(false)
   const [form, setForm] = useState({ momoNumber: order.momo_number || '', reference: order.payment_reference || '' })
   const [paying, setPaying] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   const status = order.status?.toLowerCase() || 'pending'
   const productTotal = nv(order.total)
   const shippingFee = nv(order.shipping_fee)
   const grandTotal = productTotal + shippingFee
-  const needsPayment = status === 'shipping_billed'
+  const isPending = status === 'pending'
+  const needsShippingPayment = status === 'shipping_billed'
   const paymentSubmitted = status === 'shipping_paid'
 
   const handlePay = async () => {
@@ -104,8 +108,20 @@ function OrderCard({ order, slug, onUpdate }: {
     onUpdate(order.id, { status: 'shipping_paid', momo_number: form.momoNumber, payment_reference: form.reference })
   }
 
+  const handleCancel = async () => {
+    setCancelling(true)
+    const result = await cancelOrderAction(order.id)
+    setCancelling(false)
+    if (result?.error) { toast.error(result.error); return }
+    toast.success('Order cancelled.')
+    onUpdate(order.id, { status: 'cancelled' })
+    setShowCancelConfirm(false)
+    setExpanded(false)
+  }
+
   return (
     <div className="border border-[var(--color-border)] rounded-xl overflow-hidden bg-[var(--color-card)]">
+
       {/* Order summary row */}
       <button
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--color-surface)] transition-colors text-left"
@@ -166,8 +182,52 @@ function OrderCard({ order, slug, onUpdate }: {
             )}
           </div>
 
-          {/* Shipping payment form */}
-          {needsPayment && (
+          {/* ── Pending: awaiting product payment + cancel option ── */}
+          {isPending && (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-3 flex items-start gap-2">
+                <Clock className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+                <p className="text-sm text-yellow-700">
+                  Awaiting product payment. The importer will process your order once payment is confirmed.
+                </p>
+              </div>
+
+              {/* Cancel section */}
+              {!showCancelConfirm ? (
+                <button
+                  onClick={() => setShowCancelConfirm(true)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-red-500 hover:text-red-700 transition-colors"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  Cancel this order
+                </button>
+              ) : (
+                <div className="rounded-xl border-2 border-red-200 bg-red-50 p-3 space-y-3">
+                  <p className="text-sm font-semibold text-red-700">Cancel this order?</p>
+                  <p className="text-xs text-red-600">This cannot be undone. Your order will be marked as cancelled.</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleCancel}
+                      disabled={cancelling}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                    >
+                      {cancelling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+                      Yes, cancel order
+                    </button>
+                    <button
+                      onClick={() => setShowCancelConfirm(false)}
+                      className="px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+                    >
+                      Keep order
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Shipping payment form ── */}
+          {needsShippingPayment && (
             <div className="rounded-xl border-2 border-orange-300 bg-orange-50 p-4 space-y-3">
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />
@@ -183,18 +243,20 @@ function OrderCard({ order, slug, onUpdate }: {
                 <div>
                   <label className="text-xs font-semibold text-gray-700 mb-1 block">Your MoMo Number</label>
                   <input
-                    type="tel" placeholder="e.g. 0551234567"
+                    type="tel"
+                    placeholder="e.g. 0551234567"
                     value={form.momoNumber}
-                    onChange={(e) => setForm(p => ({ ...p, momoNumber: e.target.value }))}
+                    onChange={e => setForm(p => ({ ...p, momoNumber: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg border border-orange-200 bg-white text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
                   />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-700 mb-1 block">MoMo Transaction Reference</label>
                   <input
-                    type="text" placeholder="e.g. A123456789"
+                    type="text"
+                    placeholder="e.g. A123456789"
                     value={form.reference}
-                    onChange={(e) => setForm(p => ({ ...p, reference: e.target.value }))}
+                    onChange={e => setForm(p => ({ ...p, reference: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg border border-orange-200 bg-white text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
                   />
                 </div>
@@ -210,7 +272,7 @@ function OrderCard({ order, slug, onUpdate }: {
             </div>
           )}
 
-          {/* Payment submitted */}
+          {/* ── Payment submitted ── */}
           {paymentSubmitted && (
             <div className="rounded-xl border border-green-200 bg-green-50 p-3 flex items-start gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
@@ -221,12 +283,20 @@ function OrderCard({ order, slug, onUpdate }: {
             </div>
           )}
 
-          {/* Delivered */}
+          {/* ── Delivered ── */}
           {status === 'delivered' && (
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-3 flex items-center gap-2 text-sm">
               <CheckCircle2 className="h-4 w-4 text-[var(--color-success)]" />
               <span className="font-semibold text-[var(--color-success)]">Order delivered</span>
               <span className="ml-auto text-[var(--color-text-muted)] tabular-nums">GH₵{fmt(grandTotal)}</span>
+            </div>
+          )}
+
+          {/* ── Cancelled ── */}
+          {status === 'cancelled' && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+              <p className="text-sm font-semibold text-red-600">Order cancelled</p>
             </div>
           )}
         </div>
@@ -252,7 +322,6 @@ function MonthInvoiceCard({ invoice, slug, onUpdate }: {
 
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden">
-      {/* Invoice header */}
       <button
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--color-surface)] transition-colors text-left"
         onClick={() => setOpen(!open)}
@@ -288,13 +357,11 @@ function MonthInvoiceCard({ invoice, slug, onUpdate }: {
         </div>
       </button>
 
-      {/* Orders list */}
       {open && (
         <div className="border-t border-[var(--color-border)] p-4 space-y-3">
-          {invoice.orders.map((order) => (
+          {invoice.orders.map(order => (
             <OrderCard key={order.id} order={order} slug={slug} onUpdate={onUpdate} />
           ))}
-          {/* Invoice totals footer */}
           <div className="rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] p-3 text-sm space-y-1.5">
             <div className="flex justify-between text-[var(--color-text-muted)]">
               <span>Products total</span>
@@ -358,7 +425,7 @@ export default function OrdersContent({ slug }: { slug: string }) {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o))
   }
 
-  // Group orders by month
+  // Group by month
   const invoiceMap = new Map<string, MonthInvoice>()
   for (const order of orders) {
     const key = monthKey(order.created_at)
@@ -391,7 +458,6 @@ export default function OrdersContent({ slug }: { slug: string }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5">
           <div className="flex items-center gap-3">
@@ -416,7 +482,7 @@ export default function OrdersContent({ slug }: { slug: string }) {
             </Link>
           </div>
         ) : (
-          invoices.map((invoice) => (
+          invoices.map(invoice => (
             <MonthInvoiceCard
               key={invoice.key}
               invoice={invoice}
