@@ -31,7 +31,6 @@ interface Batch {
 interface MyItem {
   id: string
   tracking_number: string
-  description?: string
   status: string
   freight_cost: number
   pushed_to_order: boolean
@@ -81,7 +80,7 @@ export default function BatchReconciliation({
   const [activeTab, setActiveTab] = useState<'mine' | 'manifest' | 'reconcile'>('mine')
 
   // New items form — no order linking
-  const [newItems, setNewItems] = useState([{ tracking_number: '', description: '', product_id: '' }])
+  const [newItems, setNewItems] = useState([{ tracking_number: '', product_id: '' }])
 
   // Manifest paste state
   const [manifestText, setManifestText] = useState('')
@@ -103,14 +102,13 @@ export default function BatchReconciliation({
       batch.id,
       valid.map(i => ({
         tracking_number: i.tracking_number.trim().toUpperCase(),
-        description: i.description || undefined,
         product_id: i.product_id || undefined,
       }))
     )
     setLoad('addItems', false)
     if (result?.error) { toast.error(result.error); return }
     toast.success(`${valid.length} item${valid.length > 1 ? 's' : ''} added`)
-    setNewItems([{ tracking_number: '', description: '', product_id: '' }])
+    setNewItems([{ tracking_number: '', product_id: '' }])
     router.refresh()
   }
 
@@ -296,7 +294,7 @@ export default function BatchReconciliation({
             </p>
 
             {newItems.map((item, idx) => (
-              <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)]">
+              <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)]">
                 <div>
                   <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tracking Number *</label>
                   <input
@@ -307,18 +305,6 @@ export default function BatchReconciliation({
                       const u = [...newItems]; u[idx].tracking_number = e.target.value; setNewItems(u)
                     }}
                     className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm font-mono focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Description</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Nike Air Max Size 42"
-                    value={item.description}
-                    onChange={e => {
-                      const u = [...newItems]; u[idx].description = e.target.value; setNewItems(u)
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -341,7 +327,7 @@ export default function BatchReconciliation({
 
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={() => setNewItems([...newItems, { tracking_number: '', description: '', product_id: '' }])}
+                onClick={() => setNewItems([...newItems, { tracking_number: '', product_id: '' }])}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-all"
               >
                 <Plus className="h-3.5 w-3.5" /> Add Row
@@ -380,7 +366,6 @@ export default function BatchReconciliation({
                           </span>
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-xs text-[var(--color-text-muted)] flex-wrap">
-                          {item.description && <span>{item.description}</span>}
                           {item.products && (
                             <span className="flex items-center gap-1">
                               <Package className="h-3 w-3" />{item.products.name}
@@ -613,7 +598,6 @@ function ReconcileRow({ item }: { item: MyItem }) {
           {item.tracking_number}
         </span>
         <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-600 flex-wrap">
-          {item.description && <span>{item.description}</span>}
           {item.products && (
             <span className="flex items-center gap-1">
               <Package className="h-3 w-3" />{item.products.name}
