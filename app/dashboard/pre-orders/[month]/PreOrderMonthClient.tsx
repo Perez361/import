@@ -5,7 +5,10 @@ import {
   Package, Hash, Phone, MapPin, ChevronDown, ChevronRight,
   ScanBarcode, AlertCircle, Clock, CheckCircle2,
   MessageCircle, Layers, Receipt, ShoppingBag,
+  Send, DollarSign, Loader2,
 } from 'lucide-react'
+import { toast } from 'sonner'
+import { billProductShippingAction } from './actions'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,6 +44,9 @@ const PAID_STATUSES = new Set([
   'shipping_billed', 'shipping_paid', 'delivered',
 ])
 
+// Statuses that can still be billed for shipping
+const BILLABLE_STATUSES = new Set(['product_paid', 'processing', 'arrived'])
+
 const STATUS_CONFIG: Record<string, { label: string; dot: string; text: string; bg: string }> = {
   pending:         { label: 'Pending',       dot: 'bg-gray-400',    text: 'text-gray-500',    bg: 'bg-gray-100' },
   product_paid:    { label: 'Product Paid',  dot: 'bg-blue-500',    text: 'text-blue-700',    bg: 'bg-blue-50' },
@@ -68,7 +74,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function CustomerRow({ c, i }: { c: CustomerRow; i: number }) {
   return (
-    <div className="grid grid-cols-[28px_1fr_84px_116px] gap-x-3 items-center px-4 py-3 hover:bg-[var(--color-surface)] transition-colors">
+    <div className="grid grid-cols-[28px_1fr_84px_130px] gap-x-3 items-center px-4 py-3 hover:bg-[var(--color-surface)] transition-colors">
       <span className="text-xs font-bold text-[var(--color-text-muted)] text-center">{i + 1}</span>
       <div className="min-w-0">
         <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{c.name}</p>
@@ -91,20 +97,27 @@ function CustomerRow({ c, i }: { c: CustomerRow; i: number }) {
         </p>
         <p className="text-xs text-[var(--color-text-muted)]">qty {c.quantity}</p>
       </div>
-      <div><StatusBadge status={c.status} /></div>
+      <div className="flex flex-col items-start gap-0.5">
+        <StatusBadge status={c.status} />
+        {/* Show shipping fee if already set */}
+        {c.shippingFee && c.shippingFee > 0 && (
+          <span className="text-[10px] text-orange-600 font-semibold pl-0.5">
+            +GH₵{fmt(c.shippingFee)} shipping
+          </span>
+        )}
+      </div>
     </div>
   )
 }
 
 function CustomerSection({
-  title, icon, customers, emptyText, headerClass, dividerClass,
+  title, icon, customers, emptyText, headerClass,
 }: {
   title: string
   icon: React.ReactNode
   customers: CustomerRow[]
   emptyText: string
   headerClass: string
-  dividerClass: string
 }) {
   return (
     <div>
@@ -118,7 +131,7 @@ function CustomerSection({
       {customers.length === 0 ? (
         <p className="px-4 py-3 text-xs text-[var(--color-text-muted)] italic">{emptyText}</p>
       ) : (
-        <div className={`divide-y ${dividerClass}`}>
+        <div className="divide-y divide-[var(--color-border)]">
           {customers.map((c, i) => <CustomerRow key={c.orderId} c={c} i={i} />)}
         </div>
       )}
@@ -128,15 +141,56 @@ function CustomerSection({
 
 function ProductCard({ group }: { group: ProductGroup }) {
   const [expanded, setExpanded] = useState(true)
+  const [customers, setCustomers] = useState<CustomerRow[]>(group.customers)
+  const [fee, setFee] = useState('')
+  const [note, setNote] = useState('')
+  const [billing, setBilling] = useState(false)
 
-  const paid    = group.customers.filter(c => PAID_STATUSES.has(c.status))
-  const pending = group.customers.filter(c => c.status === 'pending')
+  const paid     = customers.filter(c => PAID_STATUSES.has(c.status))
+  const pending  = customers.filter(c => c.status === 'pending')
 
-  const totalQty    = group.customers.reduce((s, c) => s + c.quantity, 0)
+  // Paid customers who haven't had shipping billed yet
+  const billable = customers.filter(c => BILLABLE_STATUSES.has(c.status))
+
+  const totalQty    = customers.reduce((s, c) => s + c.quantity, 0)
   const paidRevenue = paid.reduce((s, c) => s + c.unitPrice * c.quantity, 0)
+
+  const handleBillAll = async () => {
+    const feeNum = parseFloat(fee)
+    if (!feeNum || feeNum <= 0) { toast.error('Enter a valid shipping fee'); return }
+    if (!billable.length) { toast.error('No billable orders'); return }
+    setBilling(true)
+    const ids = billable.map(c => c.orderId)
+    const r: any = await billProductShippingAction(ids, feeNum, note)
+    setBilling(false)
+    if (r.error) { toast.error(r.error); return }
+    toast.success(`Shipping fee billed to ${ids.length} customer${ids.length !== 1 ? 's' : ''}!`)
+    setCustomers(prev => prev.map(c =>
+      BILLABLE_STATUSES.has(c.status)
+        ? { ...c, status: 'shipping_billed', shippingFee: feeNum, shippingNote: note || null }
+        : c
+    ))
+    setFee('')
+    setNote('')
+  }
+
+  const waLink = (c: CustomerRow, feeNum: number) => {
+    const contact = c.contact.replace(/\D/g, '')
+    const productTotal = c.unitPrice * c.quantity
+    const msg = encodeURIComponent(
+      `Hello ${c.name}! 👋\n\nYour *${group.productName}* has arrived! 📦\n\n` +
+      `✅ Product (already paid): GH₵${fmt(productTotal)}\n` +
+      `🚚 Shipping fee due: *GH₵${fmt(feeNum)}*\n` +
+      (note ? `📝 ${note}\n\n` : '\n') +
+      `Please send GH₵${fmt(feeNum)} via MoMo to receive your order. Thank you! 🙏`
+    )
+    return `https://wa.me/${contact}?text=${msg}`
+  }
 
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden">
+
+      {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full text-left px-5 py-4 bg-[var(--color-surface)] hover:bg-[var(--color-border)]/20 transition-colors"
@@ -156,7 +210,7 @@ function ProductCard({ group }: { group: ProductGroup }) {
             {group.supplierName && <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{group.supplierName}</p>}
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
               <span className="text-xs text-[var(--color-text-muted)]">
-                <span className="font-semibold text-[var(--color-text-primary)]">{group.customers.length}</span> order{group.customers.length !== 1 ? 's' : ''}
+                <span className="font-semibold text-[var(--color-text-primary)]">{customers.length}</span> order{customers.length !== 1 ? 's' : ''}
               </span>
               <span className="text-xs text-[var(--color-text-muted)]">
                 <span className="font-semibold text-[var(--color-text-primary)]">{totalQty}</span> unit{totalQty !== 1 ? 's' : ''}
@@ -171,6 +225,12 @@ function ProductCard({ group }: { group: ProductGroup }) {
                 <span className="flex items-center gap-1 text-xs font-medium text-[var(--color-warning)]">
                   <Clock className="h-3 w-3" />
                   {pending.length} pending
+                </span>
+              )}
+              {billable.length > 0 && (
+                <span className="flex items-center gap-1 text-xs font-medium text-orange-600">
+                  <DollarSign className="h-3 w-3" />
+                  {billable.length} ready to bill
                 </span>
               )}
             </div>
@@ -205,22 +265,85 @@ function ProductCard({ group }: { group: ProductGroup }) {
 
       {expanded && (
         <>
+          {/* Paid customers */}
           <CustomerSection
             title="Paid"
             icon={<CheckCircle2 className="h-3.5 w-3.5 text-[var(--color-success)]" />}
             customers={paid}
             emptyText="No payments received yet."
             headerClass="bg-[var(--color-success-light)]"
-            dividerClass="divide-[var(--color-border)]"
           />
+
+          {/* Pending customers */}
           <CustomerSection
-            title="Awaiting Payment"
+            title="Awaiting Product Payment"
             icon={<Clock className="h-3.5 w-3.5 text-[var(--color-warning)]" />}
             customers={pending}
             emptyText="No pending payments."
             headerClass="bg-[var(--color-warning-light)]"
-            dividerClass="divide-[var(--color-border)]"
           />
+
+          {/* ── Shipping fee panel — only when billable customers exist ── */}
+          {billable.length > 0 && (
+            <div className="border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-orange-500" />
+                <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                  Set shipping fee
+                </p>
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  — bills {billable.length} customer{billable.length !== 1 ? 's' : ''} at once
+                </span>
+              </div>
+
+              <div className="flex items-end gap-2 flex-wrap">
+                <div>
+                  <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Fee (GH₵) *</label>
+                  <input
+                    type="number" step="0.01" min="0" placeholder="e.g. 50"
+                    value={fee}
+                    onChange={e => setFee(e.target.value)}
+                    className="w-28 px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:ring-2 focus:ring-[var(--color-brand)] focus:outline-none"
+                  />
+                </div>
+                <div className="flex-1 min-w-[160px]">
+                  <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Note (optional)</label>
+                  <input
+                    type="text" placeholder="e.g. send to 055-XXX-XXXX"
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:ring-2 focus:ring-[var(--color-brand)] focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap pb-0">
+                  <button
+                    disabled={billing}
+                    onClick={handleBillAll}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+                  >
+                    {billing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Bill {billable.length > 1 ? `All ${billable.length}` : 'Customer'}
+                  </button>
+
+                  {/* Individual WhatsApp links when fee is entered */}
+                  {fee && parseFloat(fee) > 0 && billable.map(c => (
+                    c.contact ? (
+                      <a
+                        key={c.orderId}
+                        href={waLink(c, parseFloat(fee))}
+                        target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-semibold transition-colors"
+                        title={`WhatsApp ${c.name}`}
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        {billable.length > 1 ? c.name.split(' ')[0] : 'WhatsApp'}
+                      </a>
+                    ) : null
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -228,7 +351,7 @@ function ProductCard({ group }: { group: ProductGroup }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SHARED: Invoice card used by both Product Invoices and Shipping Invoices
+// SHARED INVOICE CARD
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface InvoiceLine {
@@ -236,7 +359,7 @@ interface InvoiceLine {
   productName: string
   quantity: number
   unitPrice: number
-  amount: number        // productTotal for product invoice, shippingFee for shipping invoice
+  amount: number
   note: string | null
 }
 
@@ -252,14 +375,12 @@ function buildProductWhatsapp(invoice: CustomerInvoice, monthLabel: string): str
   const itemLines = invoice.lines
     .map(l => `  • ${l.productName} × ${l.quantity} — GH₵${fmt(l.amount)}`)
     .join('\n')
-
   const msg =
     `Hello ${invoice.name}! 👋\n\n` +
     `Here's your product payment invoice for the *${monthLabel}* batch:\n\n` +
     `${itemLines}\n\n` +
     `💰 *Total due: GH₵${fmt(invoice.total)}*\n\n` +
     `Please send GH₵${fmt(invoice.total)} via MoMo to confirm your order. Thank you! 🙏`
-
   return `https://wa.me/${invoice.contact.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
 }
 
@@ -267,7 +388,6 @@ function buildShippingWhatsapp(invoice: CustomerInvoice, monthLabel: string): st
   const itemLines = invoice.lines
     .map(l => `  • ${l.productName} × ${l.quantity} — Shipping: GH₵${fmt(l.amount)}`)
     .join('\n')
-
   const msg =
     `Hello ${invoice.name}! 👋\n\n` +
     `Your items from the *${monthLabel}* batch have arrived! ` +
@@ -275,16 +395,11 @@ function buildShippingWhatsapp(invoice: CustomerInvoice, monthLabel: string): st
     `${itemLines}\n\n` +
     `💰 *Total shipping due: GH₵${fmt(invoice.total)}*\n\n` +
     `Please send GH₵${fmt(invoice.total)} via MoMo to complete your delivery. Thank you! 🙏`
-
   return `https://wa.me/${invoice.contact.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
 }
 
 function InvoiceCard({
-  invoice,
-  monthLabel,
-  accentColor,
-  buildWhatsapp,
-  amountLabel,
+  invoice, monthLabel, accentColor, buildWhatsapp, amountLabel,
 }: {
   invoice: CustomerInvoice
   monthLabel: string
@@ -293,38 +408,17 @@ function InvoiceCard({
   amountLabel: string
 }) {
   const [expanded, setExpanded] = useState(true)
-  const hasContact = !!invoice.contact
 
-  const accent = {
-    blue: {
-      border: 'border-blue-200',
-      header: 'bg-blue-50',
-      avatar: 'bg-blue-100 text-blue-700',
-      totalText: 'text-blue-600',
-      colHeader: 'bg-blue-50/50',
-      totalRow: 'bg-blue-50',
-      hoverBtn: 'hover:bg-blue-100',
-    },
-    orange: {
-      border: 'border-orange-200',
-      header: 'bg-orange-50',
-      avatar: 'bg-orange-100 text-orange-700',
-      totalText: 'text-orange-600',
-      colHeader: 'bg-orange-50/50',
-      totalRow: 'bg-orange-50',
-      hoverBtn: 'hover:bg-orange-100',
-    },
-  }[accentColor]
+  const accent = accentColor === 'blue'
+    ? { border: 'border-blue-200', header: 'bg-blue-50', avatar: 'bg-blue-100 text-blue-700', total: 'text-blue-600', colHeader: 'bg-blue-50/50', totalRow: 'bg-blue-50', hover: 'hover:bg-blue-100' }
+    : { border: 'border-orange-200', header: 'bg-orange-50', avatar: 'bg-orange-100 text-orange-700', total: 'text-orange-600', colHeader: 'bg-orange-50/50', totalRow: 'bg-orange-50', hover: 'hover:bg-orange-100' }
 
   return (
     <div className={`rounded-2xl border ${accent.border} bg-[var(--color-card)] shadow-sm overflow-hidden`}>
-
-      {/* Customer header */}
       <div className={`px-5 py-4 ${accent.header} flex items-center gap-4`}>
         <div className={`h-10 w-10 rounded-full ${accent.avatar} flex items-center justify-center font-bold text-sm shrink-0`}>
           {invoice.name.charAt(0).toUpperCase()}
         </div>
-
         <div className="flex-1 min-w-0">
           <p className="font-bold text-[var(--color-text-primary)]">{invoice.name}</p>
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
@@ -340,20 +434,15 @@ function InvoiceCard({
             )}
           </div>
         </div>
-
         <div className="shrink-0 flex items-center gap-3">
           <div className="text-right">
             <p className="text-xs text-[var(--color-text-muted)]">{amountLabel}</p>
-            <p className={`text-lg font-bold tabular-nums ${accent.totalText}`}>
-              GH₵{fmt(invoice.total)}
-            </p>
+            <p className={`text-lg font-bold tabular-nums ${accent.total}`}>GH₵{fmt(invoice.total)}</p>
           </div>
-
-          {hasContact ? (
+          {invoice.contact ? (
             <a
               href={buildWhatsapp(invoice, monthLabel)}
-              target="_blank"
-              rel="noopener noreferrer"
+              target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors"
             >
               <MessageCircle className="h-4 w-4" />
@@ -362,17 +451,15 @@ function InvoiceCard({
           ) : (
             <span className="text-xs text-[var(--color-text-muted)] italic">No contact</span>
           )}
-
           <button
             onClick={() => setExpanded(!expanded)}
-            className={`p-1.5 rounded-lg transition-colors text-[var(--color-text-muted)] ${accent.hoverBtn}`}
+            className={`p-1.5 rounded-lg transition-colors text-[var(--color-text-muted)] ${accent.hover}`}
           >
             {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </button>
         </div>
       </div>
 
-      {/* Line items */}
       {expanded && (
         <div className="divide-y divide-[var(--color-border)]">
           <div className={`grid grid-cols-[1fr_60px_80px] gap-x-3 px-5 py-2 ${accent.colHeader}`}>
@@ -380,36 +467,26 @@ function InvoiceCard({
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] text-center">Qty</span>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] text-right">Amount</span>
           </div>
-
-          {invoice.lines.map((line) => (
+          {invoice.lines.map(line => (
             <div key={line.orderId} className="grid grid-cols-[1fr_60px_80px] gap-x-3 items-center px-5 py-3 hover:bg-[var(--color-surface)] transition-colors">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{line.productName}</p>
-                {line.note && (
-                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">📝 {line.note}</p>
-                )}
+                {line.note && <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">📝 {line.note}</p>}
               </div>
               <p className="text-sm text-[var(--color-text-muted)] text-center tabular-nums">{line.quantity}</p>
-              <p className={`text-sm font-bold text-right tabular-nums ${accent.totalText}`}>
-                GH₵{fmt(line.amount)}
-              </p>
+              <p className={`text-sm font-bold text-right tabular-nums ${accent.total}`}>GH₵{fmt(line.amount)}</p>
             </div>
           ))}
-
           <div className={`grid grid-cols-[1fr_60px_80px] gap-x-3 items-center px-5 py-3 ${accent.totalRow}`}>
             <p className="text-sm font-bold text-[var(--color-text-primary)]">Total due</p>
             <span />
-            <p className={`text-sm font-bold text-right tabular-nums ${accent.totalText}`}>
-              GH₵{fmt(invoice.total)}
-            </p>
+            <p className={`text-sm font-bold text-right tabular-nums ${accent.total}`}>GH₵{fmt(invoice.total)}</p>
           </div>
         </div>
       )}
     </div>
   )
 }
-
-// ── Shared empty state ────────────────────────────────────────────────────────
 
 function EmptyInvoices({ icon, title, subtitle }: { icon: React.ReactNode; title: string; subtitle: string }) {
   return (
@@ -436,22 +513,20 @@ export default function PreOrderMonthClient({
 }) {
   const [tab, setTab] = useState<TabId>('products')
 
-  // Summary counts
   const totalOrders   = groups.reduce((s, g) => s + g.customers.length, 0)
   const totalPaid     = groups.reduce((s, g) => s + g.customers.filter(c => PAID_STATUSES.has(c.status)).length, 0)
   const totalPending  = groups.reduce((s, g) => s + g.customers.filter(c => c.status === 'pending').length, 0)
   const needsTracking = groups.filter(g => !g.trackingNumber).length
 
-  // ── Build product invoices (pending status — haven't paid for product yet) ──
+  // Build product invoices (pending — haven't paid for product)
   const productInvoiceMap = new Map<string, CustomerInvoice>()
   for (const group of groups) {
     for (const c of group.customers) {
       if (c.status !== 'pending') continue
-      const key = c.name
-      if (!productInvoiceMap.has(key)) {
-        productInvoiceMap.set(key, { name: c.name, contact: c.contact, location: c.location, lines: [], total: 0 })
+      if (!productInvoiceMap.has(c.name)) {
+        productInvoiceMap.set(c.name, { name: c.name, contact: c.contact, location: c.location, lines: [], total: 0 })
       }
-      const inv = productInvoiceMap.get(key)!
+      const inv = productInvoiceMap.get(c.name)!
       const amount = c.unitPrice * c.quantity
       inv.lines.push({ orderId: c.orderId, productName: group.productName, quantity: c.quantity, unitPrice: c.unitPrice, amount, note: null })
       inv.total += amount
@@ -459,16 +534,15 @@ export default function PreOrderMonthClient({
   }
   const productInvoices = Array.from(productInvoiceMap.values()).sort((a, b) => a.name.localeCompare(b.name))
 
-  // ── Build shipping invoices (shipping_billed — fee set, awaiting payment) ───
+  // Build shipping invoices (shipping_billed — fee set, awaiting payment)
   const shippingInvoiceMap = new Map<string, CustomerInvoice>()
   for (const group of groups) {
     for (const c of group.customers) {
       if (c.status !== 'shipping_billed' || !c.shippingFee) continue
-      const key = c.name
-      if (!shippingInvoiceMap.has(key)) {
-        shippingInvoiceMap.set(key, { name: c.name, contact: c.contact, location: c.location, lines: [], total: 0 })
+      if (!shippingInvoiceMap.has(c.name)) {
+        shippingInvoiceMap.set(c.name, { name: c.name, contact: c.contact, location: c.location, lines: [], total: 0 })
       }
-      const inv = shippingInvoiceMap.get(key)!
+      const inv = shippingInvoiceMap.get(c.name)!
       inv.lines.push({ orderId: c.orderId, productName: group.productName, quantity: c.quantity, unitPrice: c.unitPrice, amount: c.shippingFee, note: c.shippingNote })
       inv.total += c.shippingFee
     }
@@ -476,23 +550,9 @@ export default function PreOrderMonthClient({
   const shippingInvoices = Array.from(shippingInvoiceMap.values()).sort((a, b) => a.name.localeCompare(b.name))
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode; badge?: number }[] = [
-    {
-      id: 'products',
-      label: 'Products',
-      icon: <Layers className="h-4 w-4" />,
-    },
-    {
-      id: 'product-invoices',
-      label: 'Product Invoices',
-      icon: <ShoppingBag className="h-4 w-4" />,
-      badge: productInvoices.length || undefined,
-    },
-    {
-      id: 'shipping-invoices',
-      label: 'Shipping Invoices',
-      icon: <Receipt className="h-4 w-4" />,
-      badge: shippingInvoices.length || undefined,
-    },
+    { id: 'products',          label: 'Products',          icon: <Layers className="h-4 w-4" /> },
+    { id: 'product-invoices',  label: 'Product Invoices',  icon: <ShoppingBag className="h-4 w-4" />, badge: productInvoices.length || undefined },
+    { id: 'shipping-invoices', label: 'Shipping Invoices', icon: <Receipt className="h-4 w-4" />,     badge: shippingInvoices.length || undefined },
   ]
 
   if (groups.length === 0) {
@@ -517,28 +577,22 @@ export default function PreOrderMonthClient({
           <span className="font-semibold text-[var(--color-text-primary)]">{totalOrders}</span> order{totalOrders !== 1 ? 's' : ''}
         </span>
         {totalPaid > 0 && (
-          <>
-            <span className="h-4 w-px bg-[var(--color-border)]" />
-            <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-success)]">
-              <CheckCircle2 className="h-3.5 w-3.5" />{totalPaid} paid
-            </span>
-          </>
+          <><span className="h-4 w-px bg-[var(--color-border)]" />
+          <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-success)]">
+            <CheckCircle2 className="h-3.5 w-3.5" />{totalPaid} paid
+          </span></>
         )}
         {totalPending > 0 && (
-          <>
-            <span className="h-4 w-px bg-[var(--color-border)]" />
-            <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-warning)]">
-              <Clock className="h-3.5 w-3.5" />{totalPending} pending
-            </span>
-          </>
+          <><span className="h-4 w-px bg-[var(--color-border)]" />
+          <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-warning)]">
+            <Clock className="h-3.5 w-3.5" />{totalPending} pending
+          </span></>
         )}
         {needsTracking > 0 && (
-          <>
-            <span className="h-4 w-px bg-[var(--color-border)]" />
-            <span className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-              <AlertCircle className="h-3.5 w-3.5" />{needsTracking} missing tracking
-            </span>
-          </>
+          <><span className="h-4 w-px bg-[var(--color-border)]" />
+          <span className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+            <AlertCircle className="h-3.5 w-3.5" />{needsTracking} missing tracking
+          </span></>
         )}
       </div>
 
@@ -559,22 +613,20 @@ export default function PreOrderMonthClient({
             {t.badge !== undefined && (
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                 tab === t.id ? 'bg-[var(--color-brand)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-muted)]'
-              }`}>
-                {t.badge}
-              </span>
+              }`}>{t.badge}</span>
             )}
           </button>
         ))}
       </div>
 
-      {/* Tab: Products */}
+      {/* Products tab */}
       {tab === 'products' && (
         <div className="space-y-4">
           {groups.map(g => <ProductCard key={g.productId} group={g} />)}
         </div>
       )}
 
-      {/* Tab: Product Invoices */}
+      {/* Product Invoices tab */}
       {tab === 'product-invoices' && (
         <div className="space-y-4">
           {productInvoices.length === 0 ? (
@@ -590,28 +642,21 @@ export default function PreOrderMonthClient({
                 tap WhatsApp to send each their full invoice.
               </p>
               {productInvoices.map(inv => (
-                <InvoiceCard
-                  key={inv.name}
-                  invoice={inv}
-                  monthLabel={monthLabel}
-                  accentColor="blue"
-                  buildWhatsapp={buildProductWhatsapp}
-                  amountLabel="Product total due"
-                />
+                <InvoiceCard key={inv.name} invoice={inv} monthLabel={monthLabel} accentColor="blue" buildWhatsapp={buildProductWhatsapp} amountLabel="Product total due" />
               ))}
             </>
           )}
         </div>
       )}
 
-      {/* Tab: Shipping Invoices */}
+      {/* Shipping Invoices tab */}
       {tab === 'shipping-invoices' && (
         <div className="space-y-4">
           {shippingInvoices.length === 0 ? (
             <EmptyInvoices
               icon={<Receipt className="h-10 w-10 text-[var(--color-text-muted)]" />}
               title="No shipping invoices yet"
-              subtitle={`Customers appear here once their orders are marked Shipping Billed.`}
+              subtitle="Customers appear here once their orders are marked Shipping Billed."
             />
           ) : (
             <>
@@ -620,14 +665,7 @@ export default function PreOrderMonthClient({
                 tap WhatsApp to send each their full invoice.
               </p>
               {shippingInvoices.map(inv => (
-                <InvoiceCard
-                  key={inv.name}
-                  invoice={inv}
-                  monthLabel={monthLabel}
-                  accentColor="orange"
-                  buildWhatsapp={buildShippingWhatsapp}
-                  amountLabel="Total shipping due"
-                />
+                <InvoiceCard key={inv.name} invoice={inv} monthLabel={monthLabel} accentColor="orange" buildWhatsapp={buildShippingWhatsapp} amountLabel="Total shipping due" />
               ))}
             </>
           )}
