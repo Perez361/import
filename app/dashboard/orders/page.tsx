@@ -52,7 +52,7 @@ export default async function OrdersPage({
       order_items (
         quantity,
         price,
-        products ( name )
+        products ( id, name, image_url )
       )
     `)
     .eq('store_id', user.id)

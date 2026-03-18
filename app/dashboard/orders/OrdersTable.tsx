@@ -30,6 +30,13 @@ interface Order {
   order_items?: any[]
 }
 
+interface ProductGroup {
+  productId: string
+  productName: string
+  productImage: string | null
+  orders: Order[]
+}
+
 interface Props {
   orders: Order[]
   importerPhone: string
@@ -114,10 +121,10 @@ function CustomerRow({ order, onPatch }: {
   order: Order
   onPatch: (id: string, patch: Partial<Order>) => void
 }) {
-  const [expanded, setExpanded]           = useState(false)
-  const [ref, setRef]                     = useState('')
-  const [confirmingProduct, setCP]        = useState(false)
-  const [confirmingShipping, setCS]       = useState(false)
+  const [expanded, setExpanded]  = useState(false)
+  const [ref, setRef]            = useState('')
+  const [confirmingProduct, setCP] = useState(false)
+  const [confirmingShipping, setCS] = useState(false)
 
   const customer     = getCustomer(order.customers)
   const customerName = customer?.full_name || customer?.username || 'Unknown'
@@ -328,13 +335,6 @@ function CustomerRow({ order, onPatch }: {
 
 // ── Product Group Card ────────────────────────────────────────────────────────
 
-interface ProductGroup {
-  productId: string
-  productName: string
-  productImage: string | null
-  orders: Order[]
-}
-
 function ProductGroupCard({ group }: { group: ProductGroup }) {
   const [expanded, setExpanded] = useState(true)
   const [orders, setOrders]     = useState<Order[]>(group.orders)
@@ -343,8 +343,8 @@ function ProductGroupCard({ group }: { group: ProductGroup }) {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o))
   }
 
-  const pending  = orders.filter(o => o.status === 'pending').length
-  const paid     = orders.filter(o => o.status !== 'pending' && o.status !== 'cancelled').length
+  const pending   = orders.filter(o => o.status === 'pending').length
+  const paid      = orders.filter(o => o.status !== 'pending' && o.status !== 'cancelled').length
   const delivered = orders.filter(o => o.status === 'delivered').length
   const totalRevenue = orders.reduce((s, o) => s + n(o.total), 0)
 
@@ -437,7 +437,6 @@ export default function OrdersTable({ orders }: Props) {
     for (const order of orders) {
       const items = order.order_items || []
       if (items.length === 0) {
-        // No items — put under a generic "Unlinked Orders" group
         const key = '__unlinked__'
         if (!map.has(key)) {
           map.set(key, { productId: key, productName: 'Unlinked Orders', productImage: null, orders: [] })
@@ -448,17 +447,17 @@ export default function OrdersTable({ orders }: Props) {
 
       for (const item of items) {
         const product = Array.isArray(item.products) ? item.products[0] : item.products
-        if (!product) continue
+        if (!product?.id) continue                          // ← requires id to exist
         const key = product.id
         if (!map.has(key)) {
           map.set(key, {
-            productId: product.id,
-            productName: product.name,
-            productImage: product.image_url ?? null,
-            orders: [],
+            productId:    product.id,
+            productName:  product.name,
+            productImage: product.image_url ?? null,        // ← now available
+            orders:       [],
           })
         }
-        // Only add order once per product group
+        // Only add the order once per product group
         if (!map.get(key)!.orders.find(o => o.id === order.id)) {
           map.get(key)!.orders.push(order)
         }
