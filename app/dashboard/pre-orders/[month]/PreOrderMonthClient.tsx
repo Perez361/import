@@ -43,8 +43,6 @@ const PAID_STATUSES = new Set([
   'product_paid', 'processing', 'arrived',
   'shipping_billed', 'shipping_paid', 'delivered',
 ])
-
-// Statuses that can still be billed for shipping
 const BILLABLE_STATUSES = new Set(['product_paid', 'processing', 'arrived'])
 
 const STATUS_CONFIG: Record<string, { label: string; dot: string; text: string; bg: string }> = {
@@ -68,47 +66,73 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TAB 1 — PRODUCTS VIEW
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Customer Card ─────────────────────────────────────────────────────────────
 
-function CustomerRow({ c, i }: { c: CustomerRow; i: number }) {
+function CustomerCard({ c }: { c: CustomerRow }) {
+  const productTotal = c.unitPrice * c.quantity
+  const isPaid = PAID_STATUSES.has(c.status)
+
   return (
-    <div className="grid grid-cols-[28px_1fr_84px_130px] gap-x-3 items-center px-4 py-3 hover:bg-[var(--color-surface)] transition-colors">
-      <span className="text-xs font-bold text-[var(--color-text-muted)] text-center">{i + 1}</span>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{c.name}</p>
-        <div className="flex items-center gap-3 mt-0.5">
-          {c.contact && (
-            <span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-              <Phone className="h-2.5 w-2.5 shrink-0" />{c.contact}
-            </span>
-          )}
-          {c.location && (
-            <span className="hidden sm:flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-              <MapPin className="h-2.5 w-2.5 shrink-0" />{c.location}
-            </span>
+    <div className={`rounded-xl border bg-[var(--color-card)] overflow-hidden ${
+      isPaid ? 'border-[var(--color-border)]' : 'border-dashed border-[var(--color-border)]'
+    }`}>
+      {/* Customer header */}
+      <div className={`flex items-center gap-3 px-4 py-3 ${isPaid ? 'bg-[var(--color-surface)]' : 'bg-gray-50'}`}>
+        {/* Avatar */}
+        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+          isPaid ? 'bg-[var(--color-brand-light)] text-[var(--color-brand)]' : 'bg-gray-200 text-gray-500'
+        }`}>
+          {c.name.charAt(0).toUpperCase()}
+        </div>
+
+        {/* Name + contact */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{c.name}</p>
+          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+            {c.contact && (
+              <span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+                <Phone className="h-2.5 w-2.5 shrink-0" />{c.contact}
+              </span>
+            )}
+            {c.location && (
+              <span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+                <MapPin className="h-2.5 w-2.5 shrink-0" />{c.location}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Status */}
+        <StatusBadge status={c.status} />
+      </div>
+
+      {/* Order detail */}
+      <div className="px-4 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 text-sm flex-wrap">
+          <span className="text-[var(--color-text-muted)]">
+            Qty: <span className="font-semibold text-[var(--color-text-primary)]">{c.quantity}</span>
+          </span>
+          <span className="text-[var(--color-text-muted)]">
+            Price: <span className="font-semibold text-[var(--color-text-primary)] tabular-nums">GH₵{fmt(c.unitPrice)}</span>
+          </span>
+        </div>
+
+        <div className="text-right shrink-0">
+          <p className="text-sm font-bold text-[var(--color-text-primary)] tabular-nums">
+            GH₵{fmt(productTotal)}
+          </p>
+          {c.shippingFee && c.shippingFee > 0 && (
+            <p className="text-xs text-orange-600 font-semibold tabular-nums mt-0.5">
+              +GH₵{fmt(c.shippingFee)} shipping
+            </p>
           )}
         </div>
-      </div>
-      <div className="text-right">
-        <p className="text-sm font-bold text-[var(--color-text-primary)] tabular-nums">
-          GH₵{fmt(c.unitPrice * c.quantity)}
-        </p>
-        <p className="text-xs text-[var(--color-text-muted)]">qty {c.quantity}</p>
-      </div>
-      <div className="flex flex-col items-start gap-0.5">
-        <StatusBadge status={c.status} />
-        {/* Show shipping fee if already set */}
-        {c.shippingFee && c.shippingFee > 0 && (
-          <span className="text-[10px] text-orange-600 font-semibold pl-0.5">
-            +GH₵{fmt(c.shippingFee)} shipping
-          </span>
-        )}
       </div>
     </div>
   )
 }
+
+// ── Customer Section (Paid / Pending) ─────────────────────────────────────────
 
 function CustomerSection({
   title, icon, customers, emptyText, headerClass,
@@ -120,24 +144,28 @@ function CustomerSection({
   headerClass: string
 }) {
   return (
-    <div>
-      <div className={`flex items-center gap-2 px-4 py-2 border-y border-[var(--color-border)] ${headerClass}`}>
+    <div className="space-y-2">
+      {/* Section label */}
+      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${headerClass}`}>
         {icon}
         <span className="text-xs font-semibold uppercase tracking-wider">{title}</span>
         <span className="ml-auto text-xs font-semibold tabular-nums text-[var(--color-text-muted)]">
           {customers.length}
         </span>
       </div>
+
       {customers.length === 0 ? (
-        <p className="px-4 py-3 text-xs text-[var(--color-text-muted)] italic">{emptyText}</p>
+        <p className="text-xs text-[var(--color-text-muted)] italic px-1">{emptyText}</p>
       ) : (
-        <div className="divide-y divide-[var(--color-border)]">
-          {customers.map((c, i) => <CustomerRow key={c.orderId} c={c} i={i} />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {customers.map(c => <CustomerCard key={c.orderId} c={c} />)}
         </div>
       )}
     </div>
   )
 }
+
+// ── Product Card ──────────────────────────────────────────────────────────────
 
 function ProductCard({ group }: { group: ProductGroup }) {
   const [expanded, setExpanded] = useState(true)
@@ -148,8 +176,6 @@ function ProductCard({ group }: { group: ProductGroup }) {
 
   const paid     = customers.filter(c => PAID_STATUSES.has(c.status))
   const pending  = customers.filter(c => c.status === 'pending')
-
-  // Paid customers who haven't had shipping billed yet
   const billable = customers.filter(c => BILLABLE_STATUSES.has(c.status))
 
   const totalQty    = customers.reduce((s, c) => s + c.quantity, 0)
@@ -158,7 +184,6 @@ function ProductCard({ group }: { group: ProductGroup }) {
   const handleBillAll = async () => {
     const feeNum = parseFloat(fee)
     if (!feeNum || feeNum <= 0) { toast.error('Enter a valid shipping fee'); return }
-    if (!billable.length) { toast.error('No billable orders'); return }
     setBilling(true)
     const ids = billable.map(c => c.orderId)
     const r: any = await billProductShippingAction(ids, feeNum, note)
@@ -190,7 +215,7 @@ function ProductCard({ group }: { group: ProductGroup }) {
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden">
 
-      {/* Header */}
+      {/* Product header */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full text-left px-5 py-4 bg-[var(--color-surface)] hover:bg-[var(--color-border)]/20 transition-colors"
@@ -205,6 +230,7 @@ function ProductCard({ group }: { group: ProductGroup }) {
               </div>
             )}
           </div>
+
           <div className="flex-1 min-w-0">
             <p className="font-bold text-[var(--color-text-primary)] text-base leading-tight truncate">{group.productName}</p>
             {group.supplierName && <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{group.supplierName}</p>}
@@ -235,6 +261,8 @@ function ProductCard({ group }: { group: ProductGroup }) {
               )}
             </div>
           </div>
+
+          {/* Tracking */}
           <div className="shrink-0 hidden sm:block">
             {group.trackingNumber ? (
               <span className="inline-flex items-center gap-2 font-mono text-sm font-bold bg-[var(--color-success-light)] border border-[var(--color-success)]/20 text-[var(--color-success)] px-3 py-1.5 rounded-lg">
@@ -246,10 +274,13 @@ function ProductCard({ group }: { group: ProductGroup }) {
               </span>
             )}
           </div>
+
           <div className="shrink-0 text-[var(--color-text-muted)]">
             {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </div>
         </div>
+
+        {/* Tracking mobile */}
         <div className="sm:hidden mt-2.5">
           {group.trackingNumber ? (
             <span className="inline-flex items-center gap-1.5 font-mono text-xs font-bold bg-[var(--color-success-light)] border border-[var(--color-success)]/20 text-[var(--color-success)] px-2.5 py-1 rounded-lg">
@@ -263,15 +294,17 @@ function ProductCard({ group }: { group: ProductGroup }) {
         </div>
       </button>
 
+      {/* Expanded body */}
       {expanded && (
-        <>
+        <div className="px-4 pb-4 pt-3 space-y-4 border-t border-[var(--color-border)]">
+
           {/* Paid customers */}
           <CustomerSection
             title="Paid"
             icon={<CheckCircle2 className="h-3.5 w-3.5 text-[var(--color-success)]" />}
             customers={paid}
             emptyText="No payments received yet."
-            headerClass="bg-[var(--color-success-light)]"
+            headerClass="bg-[var(--color-success-light)] text-[var(--color-success)]"
           />
 
           {/* Pending customers */}
@@ -280,71 +313,68 @@ function ProductCard({ group }: { group: ProductGroup }) {
             icon={<Clock className="h-3.5 w-3.5 text-[var(--color-warning)]" />}
             customers={pending}
             emptyText="No pending payments."
-            headerClass="bg-[var(--color-warning-light)]"
+            headerClass="bg-[var(--color-warning-light)] text-[var(--color-warning)]"
           />
 
-          {/* ── Shipping fee panel — only when billable customers exist ── */}
+          {/* Shipping fee panel */}
           {billable.length > 0 && (
-            <div className="border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-4 space-y-3">
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-orange-500" />
-                <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                <p className="text-sm font-semibold text-orange-700">
                   Set shipping fee
+                  <span className="text-xs font-normal text-orange-600 ml-1.5">
+                    — bills {billable.length} customer{billable.length !== 1 ? 's' : ''} at once
+                  </span>
                 </p>
-                <span className="text-xs text-[var(--color-text-muted)]">
-                  — bills {billable.length} customer{billable.length !== 1 ? 's' : ''} at once
-                </span>
               </div>
-
               <div className="flex items-end gap-2 flex-wrap">
                 <div>
-                  <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Fee (GH₵) *</label>
+                  <label className="text-xs text-orange-600 mb-1 block">Fee (GH₵) *</label>
                   <input
                     type="number" step="0.01" min="0" placeholder="e.g. 50"
                     value={fee}
                     onChange={e => setFee(e.target.value)}
-                    className="w-28 px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:ring-2 focus:ring-[var(--color-brand)] focus:outline-none"
+                    className="w-28 px-3 py-2 rounded-lg border border-orange-200 bg-white text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
                   />
                 </div>
                 <div className="flex-1 min-w-[160px]">
-                  <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Note (optional)</label>
+                  <label className="text-xs text-orange-600 mb-1 block">Note (optional)</label>
                   <input
                     type="text" placeholder="e.g. send to 055-XXX-XXXX"
                     value={note}
                     onChange={e => setNote(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:ring-2 focus:ring-[var(--color-brand)] focus:outline-none"
+                    className="w-full px-3 py-2 rounded-lg border border-orange-200 bg-white text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
                   />
                 </div>
-                <div className="flex items-center gap-2 flex-wrap pb-0">
-                  <button
-                    disabled={billing}
-                    onClick={handleBillAll}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
-                  >
-                    {billing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    Bill {billable.length > 1 ? `All ${billable.length}` : 'Customer'}
-                  </button>
-
-                  {/* Individual WhatsApp links when fee is entered */}
-                  {fee && parseFloat(fee) > 0 && billable.map(c => (
-                    c.contact ? (
-                      <a
-                        key={c.orderId}
-                        href={waLink(c, parseFloat(fee))}
-                        target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-semibold transition-colors"
-                        title={`WhatsApp ${c.name}`}
-                      >
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        {billable.length > 1 ? c.name.split(' ')[0] : 'WhatsApp'}
-                      </a>
-                    ) : null
-                  ))}
-                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  disabled={billing}
+                  onClick={handleBillAll}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+                >
+                  {billing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Bill {billable.length > 1 ? `All ${billable.length}` : 'Customer'}
+                </button>
+                {fee && parseFloat(fee) > 0 && billable.map(c =>
+                  c.contact ? (
+                    <a
+                      key={c.orderId}
+                      href={waLink(c, parseFloat(fee))}
+                      target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-semibold transition-colors"
+                      title={`WhatsApp ${c.name}`}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      {billable.length > 1 ? c.name.split(' ')[0] : 'WhatsApp'}
+                    </a>
+                  ) : null
+                )}
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   )
@@ -518,7 +548,6 @@ export default function PreOrderMonthClient({
   const totalPending  = groups.reduce((s, g) => s + g.customers.filter(c => c.status === 'pending').length, 0)
   const needsTracking = groups.filter(g => !g.trackingNumber).length
 
-  // Build product invoices (pending — haven't paid for product)
   const productInvoiceMap = new Map<string, CustomerInvoice>()
   for (const group of groups) {
     for (const c of group.customers) {
@@ -534,7 +563,6 @@ export default function PreOrderMonthClient({
   }
   const productInvoices = Array.from(productInvoiceMap.values()).sort((a, b) => a.name.localeCompare(b.name))
 
-  // Build shipping invoices (shipping_billed — fee set, awaiting payment)
   const shippingInvoiceMap = new Map<string, CustomerInvoice>()
   for (const group of groups) {
     for (const c of group.customers) {
@@ -619,14 +647,12 @@ export default function PreOrderMonthClient({
         ))}
       </div>
 
-      {/* Products tab */}
       {tab === 'products' && (
         <div className="space-y-4">
           {groups.map(g => <ProductCard key={g.productId} group={g} />)}
         </div>
       )}
 
-      {/* Product Invoices tab */}
       {tab === 'product-invoices' && (
         <div className="space-y-4">
           {productInvoices.length === 0 ? (
@@ -638,7 +664,7 @@ export default function PreOrderMonthClient({
           ) : (
             <>
               <p className="text-sm text-[var(--color-text-muted)]">
-                {productInvoices.length} customer{productInvoices.length !== 1 ? 's' : ''} yet to pay for their products —
+                {productInvoices.length} customer{productInvoices.length !== 1 ? 's' : ''} yet to pay —
                 tap WhatsApp to send each their full invoice.
               </p>
               {productInvoices.map(inv => (
@@ -649,7 +675,6 @@ export default function PreOrderMonthClient({
         </div>
       )}
 
-      {/* Shipping Invoices tab */}
       {tab === 'shipping-invoices' && (
         <div className="space-y-4">
           {shippingInvoices.length === 0 ? (
