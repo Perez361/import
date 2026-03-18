@@ -249,27 +249,68 @@ function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
   const total = cartItems.reduce((s, i) => s + i.quantity * i.products.price, 0)
   const fmt = (n: number) => n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
 
-  const handleCheckout = async () => {
-    if (!store.customerId) {
-      window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
-      return
-    }
-    setPlacing(true)
-    const supabase = createClient()
-    const { error } = await supabase.from('orders').insert({
+  // ─────────────────────────────────────────────────────────────────────────────
+// PATCH: replace the handleCheckout function inside CartDrawer in StoreContent.tsx
+// Find the existing handleCheckout and replace it with this version.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const handleCheckout = async () => {
+  if (!store.customerId) {
+    window.location.href = `/store/${slug}/login?redirect=${encodeURIComponent(window.location.href)}`
+    return
+  }
+
+  if (cartItems.length === 0) {
+    toast.error('Your cart is empty')
+    return
+  }
+
+  setPlacing(true)
+  const supabase = createClient()
+
+  // 1. Create the order
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .insert({
       customer_id: store.customerId,
       store_id: store.storeId!,
       total,
       status: 'pending',
     })
+    .select('id')
+    .single()
+
+  if (orderError || !order) {
+    toast.error('Failed to place order')
     setPlacing(false)
-    if (error) {
-      toast.error('Failed to place order')
-    } else {
-      clearCart()
-      setOrderPlaced(true)
-    }
+    return
   }
+
+  // 2. Insert order_items — one row per cart item
+  const orderItems = cartItems.map((item) => ({
+    order_id: order.id,
+    product_id: item.product_id,
+    quantity: item.quantity,
+    price: item.products.price,
+  }))
+
+  const { error: itemsError } = await supabase
+    .from('order_items')
+    .insert(orderItems)
+
+  if (itemsError) {
+    console.error('Failed to insert order_items:', itemsError)
+    // Order was created — don't block the user, but log it
+    toast.error('Order placed but items may be missing. Contact support.')
+    setPlacing(false)
+    return
+  }
+
+  // 3. Clear cart and show success
+  clearCart()
+  setOrderPlaced(true)
+  setPlacing(false)
+}
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
