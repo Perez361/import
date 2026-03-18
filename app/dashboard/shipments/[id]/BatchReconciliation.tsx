@@ -14,8 +14,6 @@ import {
   deleteShipmentItemAction,
   saveFreightManifestAction,
   reconcileAction,
-  pushFreightToOrderAction,
-  updateBatchStatusAction,
   deleteBatchAction,
 } from '../actions'
 
@@ -38,9 +36,7 @@ interface MyItem {
   freight_cost: number
   pushed_to_order: boolean
   product_id?: string
-  order_id?: string
-  products?: any
-  orders?: any
+  products?: { id: string; name: string; price: number } | null
 }
 
 interface ManifestItem {
@@ -57,71 +53,68 @@ interface Props {
   myItems: MyItem[]
   manifestItems: ManifestItem[]
   products: { id: string; name: string; price: number }[]
-  orders: any[]
 }
 
-// ─── Status helpers ───────────────────────────────────────────────────────────
-
-const itemStatusConfig: Record<string, { label: string; classes: string; icon: React.ReactNode }> = {
-  pending: { label: 'Pending', classes: 'bg-gray-100 text-gray-600', icon: <HelpCircle className="h-3 w-3" /> },
-  received: { label: 'Received', classes: 'bg-green-100 text-green-700', icon: <CheckCircle2 className="h-3 w-3" /> },
-  missing: { label: 'Missing', classes: 'bg-red-100 text-red-700', icon: <AlertCircle className="h-3 w-3" /> },
-  extra: { label: 'Extra', classes: 'bg-yellow-100 text-yellow-700', icon: <HelpCircle className="h-3 w-3" /> },
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(v: number) {
   return v.toLocaleString('en-GH', { maximumFractionDigits: 2 })
 }
 
+// ─── Status config ────────────────────────────────────────────────────────────
+
+const itemStatusConfig: Record<string, { label: string; classes: string; icon: React.ReactNode }> = {
+  pending:  { label: 'Pending',  classes: 'bg-gray-100 text-gray-600',    icon: <HelpCircle className="h-3 w-3" /> },
+  received: { label: 'Received', classes: 'bg-green-100 text-green-700',  icon: <CheckCircle2 className="h-3 w-3" /> },
+  missing:  { label: 'Missing',  classes: 'bg-red-100 text-red-700',      icon: <AlertCircle className="h-3 w-3" /> },
+  extra:    { label: 'Extra',    classes: 'bg-yellow-100 text-yellow-700', icon: <HelpCircle className="h-3 w-3" /> },
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BatchReconciliation({
-  batch, myItems: initialMyItems, manifestItems: initialManifest, products, orders
+  batch, myItems: initialMyItems, manifestItems: initialManifest, products
 }: Props) {
   const router = useRouter()
   const [myItems, setMyItems] = useState<MyItem[]>(initialMyItems)
-  const [manifestItems, setManifestItems] = useState<ManifestItem[]>(initialManifest)
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [activeTab, setActiveTab] = useState<'mine' | 'manifest' | 'reconcile'>('mine')
 
-  // My items form state
-  const [newItems, setNewItems] = useState([{
-    tracking_number: '', description: '', product_id: '', order_id: ''
-  }])
+  // New items form — no order linking
+  const [newItems, setNewItems] = useState([{ tracking_number: '', description: '', product_id: '' }])
 
   // Manifest paste state
   const [manifestText, setManifestText] = useState('')
   const [manifestRows, setManifestRows] = useState<
     { tracking_number: string; freight_cost: string; weight_kg: string; notes: string }[]
   >([])
-  const [showManifestForm, setShowManifestForm] = useState(false)
+  const [manifestItems, setManifestItems] = useState<ManifestItem[]>(initialManifest)
 
   const setLoad = (key: string, val: boolean) =>
-    setLoading((prev) => ({ ...prev, [key]: val }))
+    setLoading(prev => ({ ...prev, [key]: val }))
 
-  // ── Add my tracking items ─────────────────────────────────────────────────
+  // ── Add tracking items ────────────────────────────────────────────────────
 
   const handleAddMyItems = async () => {
-    const valid = newItems.filter((i) => i.tracking_number.trim())
+    const valid = newItems.filter(i => i.tracking_number.trim())
     if (!valid.length) { toast.error('Enter at least one tracking number'); return }
     setLoad('addItems', true)
     const result: any = await addShipmentItemAction(
       batch.id,
-      valid.map((i) => ({
+      valid.map(i => ({
         tracking_number: i.tracking_number.trim().toUpperCase(),
         description: i.description || undefined,
         product_id: i.product_id || undefined,
-        order_id: i.order_id || undefined,
       }))
     )
     setLoad('addItems', false)
     if (result?.error) { toast.error(result.error); return }
     toast.success(`${valid.length} item${valid.length > 1 ? 's' : ''} added`)
-    setNewItems([{ tracking_number: '', description: '', product_id: '', order_id: '' }])
+    setNewItems([{ tracking_number: '', description: '', product_id: '' }])
     router.refresh()
   }
 
-  // ── Delete my item ────────────────────────────────────────────────────────
+  // ── Delete item ───────────────────────────────────────────────────────────
 
   const handleDeleteMyItem = async (itemId: string) => {
     if (!confirm('Remove this tracking item?')) return
@@ -129,36 +122,33 @@ export default function BatchReconciliation({
     const result: any = await deleteShipmentItemAction(itemId, batch.id)
     setLoad('del_' + itemId, false)
     if (result?.error) { toast.error(result.error); return }
-    setMyItems((prev) => prev.filter((i) => i.id !== itemId))
+    setMyItems(prev => prev.filter(i => i.id !== itemId))
     toast.success('Item removed')
   }
 
-  // ── Parse manifest text ───────────────────────────────────────────────────
+  // ── Parse manifest ────────────────────────────────────────────────────────
 
   const parseManifestText = () => {
     const lines = manifestText.trim().split('\n').filter(Boolean)
-    const parsed = lines.map((line) => {
-      // Try tab-separated or comma-separated: tracking, cost, weight, notes
-      const parts = line.includes('\t')
-        ? line.split('\t')
-        : line.split(',')
+    const parsed = lines.map(line => {
+      const parts = line.includes('\t') ? line.split('\t') : line.split(',')
       return {
         tracking_number: (parts[0] || '').trim().toUpperCase(),
         freight_cost: (parts[1] || '0').trim().replace(/[^0-9.]/g, ''),
         weight_kg: (parts[2] || '').trim().replace(/[^0-9.]/g, ''),
         notes: (parts[3] || '').trim(),
       }
-    }).filter((r) => r.tracking_number)
+    }).filter(r => r.tracking_number)
     setManifestRows(parsed)
   }
 
   const handleSaveManifest = async () => {
-    const valid = manifestRows.filter((r) => r.tracking_number)
+    const valid = manifestRows.filter(r => r.tracking_number)
     if (!valid.length) { toast.error('No valid rows to save'); return }
     setLoad('saveManifest', true)
     const result: any = await saveFreightManifestAction(
       batch.id,
-      valid.map((r) => ({
+      valid.map(r => ({
         tracking_number: r.tracking_number,
         freight_cost: parseFloat(r.freight_cost) || 0,
         weight_kg: r.weight_kg ? parseFloat(r.weight_kg) : undefined,
@@ -170,7 +160,6 @@ export default function BatchReconciliation({
     toast.success(`${valid.length} manifest items saved`)
     setManifestText('')
     setManifestRows([])
-    setShowManifestForm(false)
     router.refresh()
   }
 
@@ -188,17 +177,6 @@ export default function BatchReconciliation({
     router.refresh()
   }
 
-  // ── Push freight cost to order ────────────────────────────────────────────
-
-  const handlePushToOrder = async (itemId: string) => {
-    setLoad('push_' + itemId, true)
-    const result: any = await pushFreightToOrderAction(itemId, batch.id)
-    setLoad('push_' + itemId, false)
-    if (result?.error) { toast.error(result.error); return }
-    toast.success('Shipping fee pushed to customer order!')
-    router.refresh()
-  }
-
   // ── Delete batch ──────────────────────────────────────────────────────────
 
   const handleDeleteBatch = async () => {
@@ -211,25 +189,19 @@ export default function BatchReconciliation({
     router.push('/dashboard/shipments')
   }
 
-  // ── Reconciliation summary ────────────────────────────────────────────────
-  const received = myItems.filter((i) => i.status === 'received').length
-  const missing = myItems.filter((i) => i.status === 'missing').length
-  const extras = manifestItems.filter((i) => !i.matched).length
-  const totalFreight = myItems
-    .filter((i) => i.status === 'received')
-    .reduce((s, i) => s + (i.freight_cost || 0), 0)
+  // ── Summary stats ─────────────────────────────────────────────────────────
 
-  const getOrderLabel = (order: any) => {
-    if (!order) return ''
-    const c = Array.isArray(order.customers) ? order.customers[0] : order.customers
-    const name = c?.full_name || c?.username || 'Unknown'
-    return `#${order.id.slice(-6).toUpperCase()} — ${name}`
-  }
+  const received   = myItems.filter(i => i.status === 'received').length
+  const missing    = myItems.filter(i => i.status === 'missing').length
+  const extras     = manifestItems.filter(i => !i.matched).length
+  const totalFreight = myItems
+    .filter(i => i.status === 'received')
+    .reduce((s, i) => s + (i.freight_cost || 0), 0)
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
 
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Link href="/dashboard/shipments" className="p-2 rounded-lg hover:bg-[var(--color-surface)] transition-colors">
@@ -241,7 +213,7 @@ export default function BatchReconciliation({
               {batch.shipping_company || 'No company'} ·{' '}
               <span className={`font-medium ${
                 batch.status === 'reconciled' ? 'text-green-600' :
-                batch.status === 'received' ? 'text-yellow-600' : 'text-blue-600'
+                batch.status === 'received'   ? 'text-yellow-600' : 'text-blue-600'
               }`}>
                 {batch.status.charAt(0).toUpperCase() + batch.status.slice(1)}
               </span>
@@ -270,14 +242,14 @@ export default function BatchReconciliation({
         </div>
       </div>
 
-      {/* Summary cards */}
+      {/* ── Summary cards (after reconciliation) ── */}
       {batch.status === 'reconciled' && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'My Items', value: myItems.length, color: 'text-[var(--color-text-primary)]', icon: Package },
-            { label: 'Received', value: received, color: 'text-green-600', icon: CheckCircle2 },
-            { label: 'Missing', value: missing, color: 'text-red-600', icon: AlertCircle },
-            { label: 'Extras (freight)', value: extras, color: 'text-yellow-600', icon: HelpCircle },
+            { label: 'My Items',         value: myItems.length, color: 'text-[var(--color-text-primary)]', icon: Package },
+            { label: 'Received',         value: received,       color: 'text-green-600',                   icon: CheckCircle2 },
+            { label: 'Missing',          value: missing,        color: 'text-red-600',                     icon: AlertCircle },
+            { label: 'Extras (freight)', value: extras,         color: 'text-yellow-600',                  icon: HelpCircle },
           ].map(({ label, value, color, icon: Icon }) => (
             <div key={label} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 text-center">
               <Icon className={`h-5 w-5 mx-auto mb-1 ${color}`} />
@@ -288,13 +260,13 @@ export default function BatchReconciliation({
         </div>
       )}
 
-      {/* Tabs */}
+      {/* ── Tabs ── */}
       <div className="flex items-center gap-1 border-b border-[var(--color-border)]">
         {[
-          { key: 'mine', label: `My Items (${myItems.length})` },
-          { key: 'manifest', label: `Freight Manifest (${manifestItems.length})` },
+          { key: 'mine',      label: `My Items (${myItems.length})` },
+          { key: 'manifest',  label: `Freight Manifest (${manifestItems.length})` },
           { key: 'reconcile', label: 'Reconciliation' },
-        ].map((tab) => (
+        ].map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key as any)}
@@ -309,7 +281,7 @@ export default function BatchReconciliation({
         ))}
       </div>
 
-      {/* ── TAB: MY ITEMS ───────────────────────────────────────────────────── */}
+      {/* ── TAB: MY ITEMS ─────────────────────────────────────────────────── */}
       {activeTab === 'mine' && (
         <div className="space-y-4">
 
@@ -320,21 +292,19 @@ export default function BatchReconciliation({
               Add Tracking Numbers
             </p>
             <p className="text-xs text-[var(--color-text-muted)]">
-              Enter the tracking numbers you got from the overseas stores. Link each one to a product and customer order.
+              Enter tracking numbers from the overseas store. Link each to a product — customers are auto-traced through their orders.
             </p>
 
             {newItems.map((item, idx) => (
-              <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)]">
+              <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)]">
                 <div>
                   <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tracking Number *</label>
                   <input
                     type="text"
                     placeholder="e.g. 1Z999AA1..."
                     value={item.tracking_number}
-                    onChange={(e) => {
-                      const updated = [...newItems]
-                      updated[idx].tracking_number = e.target.value
-                      setNewItems(updated)
+                    onChange={e => {
+                      const u = [...newItems]; u[idx].tracking_number = e.target.value; setNewItems(u)
                     }}
                     className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm font-mono focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent"
                   />
@@ -345,10 +315,8 @@ export default function BatchReconciliation({
                     type="text"
                     placeholder="e.g. Nike Air Max Size 42"
                     value={item.description}
-                    onChange={(e) => {
-                      const updated = [...newItems]
-                      updated[idx].description = e.target.value
-                      setNewItems(updated)
+                    onChange={e => {
+                      const u = [...newItems]; u[idx].description = e.target.value; setNewItems(u)
                     }}
                     className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent"
                   />
@@ -357,33 +325,14 @@ export default function BatchReconciliation({
                   <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Product</label>
                   <select
                     value={item.product_id}
-                    onChange={(e) => {
-                      const updated = [...newItems]
-                      updated[idx].product_id = e.target.value
-                      setNewItems(updated)
+                    onChange={e => {
+                      const u = [...newItems]; u[idx].product_id = e.target.value; setNewItems(u)
                     }}
                     className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent"
                   >
                     <option value="">— Select product —</option>
-                    {products.map((p) => (
+                    {products.map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Customer Order</label>
-                  <select
-                    value={item.order_id}
-                    onChange={(e) => {
-                      const updated = [...newItems]
-                      updated[idx].order_id = e.target.value
-                      setNewItems(updated)
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent"
-                  >
-                    <option value="">— Link to order —</option>
-                    {orders.map((o: any) => (
-                      <option key={o.id} value={o.id}>{getOrderLabel(o)}</option>
                     ))}
                   </select>
                 </div>
@@ -392,7 +341,7 @@ export default function BatchReconciliation({
 
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={() => setNewItems([...newItems, { tracking_number: '', description: '', product_id: '', order_id: '' }])}
+                onClick={() => setNewItems([...newItems, { tracking_number: '', description: '', product_id: '' }])}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-all"
               >
                 <Plus className="h-3.5 w-3.5" /> Add Row
@@ -408,23 +357,17 @@ export default function BatchReconciliation({
             </div>
           </div>
 
-          {/* My items list */}
+          {/* Items list */}
           {myItems.length > 0 && (
             <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] overflow-hidden">
               <div className="px-5 py-3 bg-[var(--color-surface)] border-b border-[var(--color-border)]">
                 <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-                  My Tracking List ({myItems.length} items)
+                  My Tracking List ({myItems.length} item{myItems.length !== 1 ? 's' : ''})
                 </p>
               </div>
               <div className="divide-y divide-[var(--color-border)]">
-                {myItems.map((item) => {
+                {myItems.map(item => {
                   const cfg = itemStatusConfig[item.status] || itemStatusConfig['pending']
-                  const product = item.products
-                  const order = item.orders
-                  const orderCustomer = order
-                    ? (Array.isArray(order.customers) ? order.customers[0] : order.customers)
-                    : null
-
                   return (
                     <div key={item.id} className="px-5 py-4 flex items-center gap-4 flex-wrap hover:bg-[var(--color-surface)] transition-colors">
                       <div className="flex-1 min-w-0">
@@ -435,19 +378,12 @@ export default function BatchReconciliation({
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.classes}`}>
                             {cfg.icon} {cfg.label}
                           </span>
-                          {item.pushed_to_order && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                              <CheckCircle2 className="h-3 w-3" /> Billed
-                            </span>
-                          )}
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-xs text-[var(--color-text-muted)] flex-wrap">
                           {item.description && <span>{item.description}</span>}
-                          {product && <span className="flex items-center gap-1"><Package className="h-3 w-3" />{product.name}</span>}
-                          {order && orderCustomer && (
+                          {item.products && (
                             <span className="flex items-center gap-1">
-                              <Truck className="h-3 w-3" />
-                              Order #{order.id.slice(-6).toUpperCase()} — {orderCustomer.full_name || orderCustomer.username}
+                              <Package className="h-3 w-3" />{item.products.name}
                             </span>
                           )}
                           {item.freight_cost > 0 && (
@@ -458,28 +394,13 @@ export default function BatchReconciliation({
                           )}
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        {/* Push to order button */}
-                        {item.status === 'received' && item.order_id && item.freight_cost > 0 && !item.pushed_to_order && (
-                          <button
-                            onClick={() => handlePushToOrder(item.id)}
-                            disabled={loading['push_' + item.id]}
-                            title="Send shipping fee to customer order"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold transition-all disabled:opacity-50"
-                          >
-                            {loading['push_' + item.id] ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                            Bill Customer
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteMyItem(item.id)}
-                          disabled={loading['del_' + item.id]}
-                          className="p-1.5 text-[var(--color-danger)] hover:bg-[var(--color-danger-light)] rounded-lg transition-all disabled:opacity-50"
-                        >
-                          {loading['del_' + item.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleDeleteMyItem(item.id)}
+                        disabled={loading['del_' + item.id]}
+                        className="p-1.5 text-[var(--color-danger)] hover:bg-[var(--color-danger-light)] rounded-lg transition-all disabled:opacity-50 shrink-0"
+                      >
+                        {loading['del_' + item.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      </button>
                     </div>
                   )
                 })}
@@ -489,7 +410,7 @@ export default function BatchReconciliation({
         </div>
       )}
 
-      {/* ── TAB: FREIGHT MANIFEST ──────────────────────────────────────────── */}
+      {/* ── TAB: FREIGHT MANIFEST ─────────────────────────────────────────── */}
       {activeTab === 'manifest' && (
         <div className="space-y-4">
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 space-y-4">
@@ -498,13 +419,12 @@ export default function BatchReconciliation({
                 Enter Freight Company List
               </p>
               <p className="text-xs text-[var(--color-text-muted)] mb-3">
-                Paste the shipping company's manifest below. One row per line.<br />
-                <strong>Format:</strong> <code className="bg-gray-100 px-1 rounded">TRACKING_NUMBER, COST, WEIGHT_KG, NOTES</code><br />
-                (Tab-separated also works. Cost and weight are optional.)
+                Paste the shipping company's manifest. One row per line.<br />
+                <strong>Format:</strong> <code className="bg-gray-100 px-1 rounded">TRACKING_NUMBER, COST, WEIGHT_KG, NOTES</code>
               </p>
               <textarea
                 value={manifestText}
-                onChange={(e) => setManifestText(e.target.value)}
+                onChange={e => setManifestText(e.target.value)}
                 rows={8}
                 placeholder={`1Z999AA10123456784, 45.00, 1.2, fragile\nABC123DEF456, 32.50\n1ZEXAMPLE1234, 55.00, 2.0`}
                 className="w-full px-3 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-sm font-mono focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent resize-y"
@@ -530,7 +450,6 @@ export default function BatchReconciliation({
               )}
             </div>
 
-            {/* Parsed preview */}
             {manifestRows.length > 0 && (
               <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
                 <div className="bg-[var(--color-surface)] px-4 py-2 border-b border-[var(--color-border)]">
@@ -552,7 +471,6 @@ export default function BatchReconciliation({
             )}
           </div>
 
-          {/* Saved manifest */}
           {manifestItems.length > 0 && (
             <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] overflow-hidden">
               <div className="px-5 py-3 bg-[var(--color-surface)] border-b border-[var(--color-border)]">
@@ -562,7 +480,7 @@ export default function BatchReconciliation({
                 </p>
               </div>
               <div className="divide-y divide-[var(--color-border)]">
-                {manifestItems.map((item) => (
+                {manifestItems.map(item => (
                   <div key={item.id} className="px-5 py-3 flex items-center gap-4 hover:bg-[var(--color-surface)] transition-colors">
                     <span className="font-mono text-sm font-semibold flex-1 text-[var(--color-text-primary)]">
                       {item.tracking_number}
@@ -614,40 +532,27 @@ export default function BatchReconciliation({
             </div>
           ) : (
             <div className="space-y-4">
+
               {/* Received */}
-              <Section
-                title={`✅ Received (${myItems.filter(i => i.status === 'received').length})`}
-                color="border-green-200 bg-green-50"
-              >
-                {myItems.filter((i) => i.status === 'received').map((item) => (
-                  <ReconcileRow
-                    key={item.id}
-                    item={item}
-                    onPush={() => handlePushToOrder(item.id)}
-                    pushLoading={loading['push_' + item.id]}
-                  />
+              <ReconcileSection title={`✅ Received (${myItems.filter(i => i.status === 'received').length})`} color="border-green-200 bg-green-50">
+                {myItems.filter(i => i.status === 'received').map(item => (
+                  <ReconcileRow key={item.id} item={item} />
                 ))}
-              </Section>
+              </ReconcileSection>
 
               {/* Missing */}
-              {myItems.filter((i) => i.status === 'missing').length > 0 && (
-                <Section
-                  title={`⚠️ Missing — In my list but NOT received (${myItems.filter(i => i.status === 'missing').length})`}
-                  color="border-red-200 bg-red-50"
-                >
-                  {myItems.filter((i) => i.status === 'missing').map((item) => (
+              {myItems.filter(i => i.status === 'missing').length > 0 && (
+                <ReconcileSection title={`⚠️ Missing (${myItems.filter(i => i.status === 'missing').length})`} color="border-red-200 bg-red-50">
+                  {myItems.filter(i => i.status === 'missing').map(item => (
                     <ReconcileRow key={item.id} item={item} />
                   ))}
-                </Section>
+                </ReconcileSection>
               )}
 
               {/* Extras */}
-              {manifestItems.filter((i) => !i.matched).length > 0 && (
-                <Section
-                  title={`❓ Extras — In freight list but NOT in my list (${manifestItems.filter(i => !i.matched).length})`}
-                  color="border-yellow-200 bg-yellow-50"
-                >
-                  {manifestItems.filter((i) => !i.matched).map((item) => (
+              {manifestItems.filter(i => !i.matched).length > 0 && (
+                <ReconcileSection title={`❓ Extras — in freight list but not in my list (${manifestItems.filter(i => !i.matched).length})`} color="border-yellow-200 bg-yellow-50">
+                  {manifestItems.filter(i => !i.matched).map(item => (
                     <div key={item.id} className="flex items-center gap-3 py-2.5">
                       <span className="font-mono text-sm font-semibold text-[var(--color-text-primary)] flex-1">
                         {item.tracking_number}
@@ -658,7 +563,7 @@ export default function BatchReconciliation({
                       {item.notes && <span className="text-xs text-[var(--color-text-muted)]">{item.notes}</span>}
                     </div>
                   ))}
-                </Section>
+                </ReconcileSection>
               )}
 
               {/* Total */}
@@ -680,7 +585,7 @@ export default function BatchReconciliation({
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Section({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
+function ReconcileSection({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(true)
   return (
     <div className={`rounded-2xl border-2 ${color} overflow-hidden`}>
@@ -700,11 +605,7 @@ function Section({ title, color, children }: { title: string; color: string; chi
   )
 }
 
-function ReconcileRow({ item, onPush, pushLoading }: { item: MyItem; onPush?: () => void; pushLoading?: boolean }) {
-  const product = item.products
-  const order = item.orders
-  const orderCustomer = order ? (Array.isArray(order.customers) ? order.customers[0] : order.customers) : null
-
+function ReconcileRow({ item }: { item: MyItem }) {
   return (
     <div className="flex items-center gap-3 py-3 flex-wrap">
       <div className="flex-1 min-w-0">
@@ -713,33 +614,17 @@ function ReconcileRow({ item, onPush, pushLoading }: { item: MyItem; onPush?: ()
         </span>
         <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-600 flex-wrap">
           {item.description && <span>{item.description}</span>}
-          {product && <span className="flex items-center gap-1"><Package className="h-3 w-3" />{product.name}</span>}
-          {orderCustomer && (
-            <span>
-              Order #{order.id.slice(-6).toUpperCase()} — {orderCustomer.full_name || orderCustomer.username}
+          {item.products && (
+            <span className="flex items-center gap-1">
+              <Package className="h-3 w-3" />{item.products.name}
             </span>
           )}
         </div>
       </div>
       {item.freight_cost > 0 && (
         <span className="text-sm font-bold text-orange-600 tabular-nums shrink-0">
-          GH₵{(item.freight_cost || 0).toLocaleString('en-GH', { maximumFractionDigits: 2 })}
+          GH₵{fmt(item.freight_cost)}
         </span>
-      )}
-      {item.pushed_to_order && (
-        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold shrink-0">
-          Billed ✓
-        </span>
-      )}
-      {item.status === 'received' && item.order_id && item.freight_cost > 0 && !item.pushed_to_order && onPush && (
-        <button
-          onClick={onPush}
-          disabled={pushLoading}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold transition-all disabled:opacity-50 shrink-0"
-        >
-          {pushLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-          Bill Customer
-        </button>
       )}
     </div>
   )

@@ -24,13 +24,12 @@ export default async function BatchDetailPage({
 
   if (!batch) notFound()
 
-  // Fetch my shipment items with linked product/order info
+  // Fetch my shipment items — products only, no order join needed
   const { data: myItems } = await supabase
     .from('shipment_items')
     .select(`
       *,
-      products ( id, name, price ),
-      orders ( id, total, status, customers ( full_name, username, contact ) )
+      products ( id, name, price )
     `)
     .eq('batch_id', batchId)
     .order('created_at', { ascending: false })
@@ -42,23 +41,12 @@ export default async function BatchDetailPage({
     .eq('batch_id', batchId)
     .order('created_at', { ascending: false })
 
-  // Fetch all products for linking dropdown
+  // Fetch all products for the product dropdown
   const { data: products } = await supabase
     .from('products')
     .select('id, name, price')
     .eq('importer_id', user.id)
     .order('name')
-
-  // Fetch pending/processing orders for linking dropdown
-  const { data: orders } = await supabase
-    .from('orders')
-    .select(`
-      id, total, status,
-      customers ( full_name, username )
-    `)
-    .eq('store_id', user.id)
-    .in('status', ['pending', 'processing', 'arrived', 'shipping_billed'])
-    .order('created_at', { ascending: false })
 
   return (
     <BatchReconciliation
@@ -66,7 +54,6 @@ export default async function BatchDetailPage({
       myItems={myItems || []}
       manifestItems={manifestItems || []}
       products={products || []}
-      orders={orders || []}
     />
   )
 }
