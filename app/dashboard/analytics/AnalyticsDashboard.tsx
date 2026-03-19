@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import {
@@ -67,12 +67,15 @@ function delta(cur: number, prev: number): { val: number; dir: 'up' | 'down' | '
   return { val: Math.abs(val), dir: val > 0 ? 'up' : val < 0 ? 'down' : 'flat' }
 }
 
-function totalRevenue(order: Order): number {
+function orderRevenue(order: Order): number {
   return n(order.total) + n(order.shipping_fee)
 }
 
+// ── Exclude cancelled from revenue chart data ────────────────────────────────
 function buildRevenueData(orders: Order[], period: string) {
   const days = { '7d': 7, '30d': 30, '90d': 90, '1y': 365 }[period] || 30
+  // Filter out cancelled before building chart
+  const paid = orders.filter((o) => o.status !== 'cancelled')
   const buckets: { label: string; key: string; revenue: number; products: number; shipping: number }[] = []
 
   if (days <= 30) {
@@ -81,10 +84,10 @@ function buildRevenueData(orders: Order[], period: string) {
       d.setDate(d.getDate() - i)
       buckets.push({ key: d.toISOString().slice(0, 10), label: d.toLocaleDateString('en', { month: 'short', day: 'numeric' }), revenue: 0, products: 0, shipping: 0 })
     }
-    orders.forEach((o) => {
+    paid.forEach((o) => {
       const k = o.created_at?.slice(0, 10)
       const b = buckets.find((x) => x.key === k)
-      if (b) { b.products += n(o.total); b.shipping += n(o.shipping_fee); b.revenue += totalRevenue(o) }
+      if (b) { b.products += n(o.total); b.shipping += n(o.shipping_fee); b.revenue += orderRevenue(o) }
     })
   } else if (days <= 90) {
     const weeks = Math.ceil(days / 7)
@@ -93,22 +96,22 @@ function buildRevenueData(orders: Order[], period: string) {
       const wStart = new Date(d); wStart.setDate(d.getDate() - d.getDay())
       buckets.push({ key: 'W' + wStart.toISOString().slice(0, 10), label: `Wk${weeks - i}`, revenue: 0, products: 0, shipping: 0 })
     }
-    orders.forEach((o) => {
+    paid.forEach((o) => {
       if (!o.created_at) return
       const d = new Date(o.created_at); const wStart = new Date(d); wStart.setDate(d.getDate() - d.getDay())
       const key = 'W' + wStart.toISOString().slice(0, 10)
       const b = buckets.find((x) => x.key === key)
-      if (b) { b.products += n(o.total); b.shipping += n(o.shipping_fee); b.revenue += totalRevenue(o) }
+      if (b) { b.products += n(o.total); b.shipping += n(o.shipping_fee); b.revenue += orderRevenue(o) }
     })
   } else {
     for (let i = 11; i >= 0; i--) {
       const d = new Date(); d.setMonth(d.getMonth() - i)
       buckets.push({ key: d.toISOString().slice(0, 7), label: d.toLocaleDateString('en', { month: 'short' }), revenue: 0, products: 0, shipping: 0 })
     }
-    orders.forEach((o) => {
+    paid.forEach((o) => {
       const k = o.created_at?.slice(0, 7)
       const b = buckets.find((x) => x.key === k)
-      if (b) { b.products += n(o.total); b.shipping += n(o.shipping_fee); b.revenue += totalRevenue(o) }
+      if (b) { b.products += n(o.total); b.shipping += n(o.shipping_fee); b.revenue += orderRevenue(o) }
     })
   }
 
@@ -122,25 +125,23 @@ function KpiCard({ label, value, prev, prefix = '', sub }: {
 }) {
   const d = delta(value, prev)
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm flex flex-col gap-3">
-      <span className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">{label}</span>
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-sm flex flex-col gap-2">
+      <span className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">{label}</span>
       <span className="text-xl sm:text-2xl font-bold text-[var(--color-text-primary)] tabular-nums">
         {prefix}{fmt(value)}
       </span>
-      <div className="flex items-center justify-between flex-wrap gap-1">
-        {sub && <span className="text-xs text-[var(--color-text-muted)]">{sub}</span>}
-        {prev > 0 && (
-          <span className={`flex items-center gap-1 text-xs font-medium ${
-            d.dir === 'up' ? 'text-[var(--color-success)]' :
-            d.dir === 'down' ? 'text-[var(--color-danger)]' : 'text-[var(--color-text-muted)]'
-          }`}>
-            {d.dir === 'up' ? <TrendingUp className="h-3 w-3" /> :
-             d.dir === 'down' ? <TrendingDown className="h-3 w-3" /> :
-             <Minus className="h-3 w-3" />}
-            {d.dir !== 'flat' ? `${d.val}%` : 'No change'} vs prev
-          </span>
-        )}
-      </div>
+      {sub && <span className="text-xs text-[var(--color-text-muted)]">{sub}</span>}
+      {d.dir !== 'flat' && (
+        <span className={`flex items-center gap-1 text-xs font-semibold ${
+          d.dir === 'up' ? 'text-[var(--color-success)]' :
+          d.dir === 'down' ? 'text-[var(--color-danger)]' : 'text-[var(--color-text-muted)]'
+        }`}>
+          {d.dir === 'up' ? <TrendingUp className="h-3 w-3" /> :
+           d.dir === 'down' ? <TrendingDown className="h-3 w-3" /> :
+           <Minus className="h-3 w-3" />}
+          {d.val}% vs prev
+        </span>
+      )}
     </div>
   )
 }
@@ -170,7 +171,7 @@ const DowTooltip = ({ active, payload, label }: any) => {
   )
 }
 
-// ─── Status badge ─────────────────────────────────────────────────────────────
+// ─── Status colours ───────────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {
   pending: '#94A3B8',
@@ -192,21 +193,24 @@ export default function AnalyticsDashboard({
 }: Props) {
   const router = useRouter()
 
-  // KPIs
-  const productRev = orders.reduce((s, o) => s + n(o.total), 0)
-  const shippingRev = orders.reduce((s, o) => s + n(o.shipping_fee), 0)
-  const revenue = productRev + shippingRev
+  // ── KPIs — cancelled excluded ─────────────────────────────────────────────
+  const paidOrders     = orders.filter((o) => o.status !== 'cancelled')
+  const prevPaidOrders = prevOrders.filter((o) => o.status !== 'cancelled')
 
-  const prevProductRev = prevOrders.reduce((s, o) => s + n(o.total), 0)
-  const prevShippingRev = prevOrders.reduce((s, o) => s + n(o.shipping_fee), 0)
-  const prevRevenue = prevProductRev + prevShippingRev
+  const productRev  = paidOrders.reduce((s, o) => s + n(o.total), 0)
+  const shippingRev = paidOrders.reduce((s, o) => s + n(o.shipping_fee), 0)
+  const revenue     = productRev + shippingRev
 
-  const ordCount = orders.length
+  const prevProductRev  = prevPaidOrders.reduce((s, o) => s + n(o.total), 0)
+  const prevShippingRev = prevPaidOrders.reduce((s, o) => s + n(o.shipping_fee), 0)
+  const prevRevenue     = prevProductRev + prevShippingRev
+
+  const ordCount     = orders.length
   const prevOrdCount = prevOrders.length
-  const custCount = customers.length
+  const custCount    = customers.length
   const prevCustCount = prevCustomers.length
-  const aov = ordCount > 0 ? revenue / ordCount : 0
-  const prevAov = prevOrders.length > 0 ? prevRevenue / prevOrders.length : 0
+  const aov     = paidOrders.length > 0 ? revenue / paidOrders.length : 0
+  const prevAov = prevPaidOrders.length > 0 ? prevRevenue / prevPaidOrders.length : 0
 
   // Revenue summary (period-scoped)
   const deliveredRevenue = orders
@@ -216,10 +220,10 @@ export default function AnalyticsDashboard({
     .filter((o) => o.status === 'cancelled')
     .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
 
-  // Revenue chart data
+  // Revenue chart data — cancelled already filtered inside buildRevenueData
   const revenueData = buildRevenueData(orders, period)
 
-  // Status donut
+  // Status donut (all orders including cancelled, for accurate breakdown)
   const statusCounts: Record<string, number> = {}
   orders.forEach((o) => {
     const s = o.status?.toLowerCase() || 'pending'
@@ -238,21 +242,20 @@ export default function AnalyticsDashboard({
   const topProducts = Object.entries(prodRev).sort((a, b) => b[1] - a[1]).slice(0, 5)
   const maxProdRev = topProducts[0]?.[1] || 1
 
-  // Funnel — updated to match new status flow
+  // Funnel
   const total = allOrders.length
   const funnel = [
     { label: 'Total orders', count: total, color: '#2563EB' },
     { label: 'Product paid', count: allOrders.filter((o) => ['product_paid','processing','arrived','shipping_billed','shipping_paid','delivered'].includes(o.status?.toLowerCase())).length, color: '#3B82F6' },
-    { label: 'Arrived', count: allOrders.filter((o) => ['arrived','shipping_billed','shipping_paid','delivered'].includes(o.status?.toLowerCase())).length, color: '#8B5CF6' },
-    { label: 'Shipping paid', count: allOrders.filter((o) => ['shipping_paid','delivered'].includes(o.status?.toLowerCase())).length, color: '#10B981' },
-    { label: 'Delivered', count: allOrders.filter((o) => o.status?.toLowerCase() === 'delivered').length, color: '#059669' },
+    { label: 'Arrived',      count: allOrders.filter((o) => ['arrived','shipping_billed','shipping_paid','delivered'].includes(o.status?.toLowerCase())).length, color: '#8B5CF6' },
+    { label: 'Shipping paid',count: allOrders.filter((o) => ['shipping_paid','delivered'].includes(o.status?.toLowerCase())).length, color: '#10B981' },
+    { label: 'Delivered',    count: allOrders.filter((o) => o.status?.toLowerCase() === 'delivered').length, color: '#059669' },
   ]
 
   // Day of week
   const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const dowCounts = new Array(7).fill(0)
   orders.forEach((o) => { if (o.created_at) dowCounts[new Date(o.created_at).getDay()]++ })
-  const maxDow = Math.max(...dowCounts)
   const dowData = DOW_LABELS.map((label, i) => ({ label, orders: dowCounts[i] }))
 
   // Customer insights
@@ -296,28 +299,11 @@ export default function AnalyticsDashboard({
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <KpiCard
-          label="Total Revenue"
-          value={Math.round(revenue)}
-          prev={Math.round(prevRevenue)}
-          prefix="GH₵"
-          sub={`+GH₵${fmt(Math.round(shippingRev))} shipping`}
-        />
-        <KpiCard
-          label="Shipping Collected"
-          value={Math.round(shippingRev)}
-          prev={Math.round(prevShippingRev)}
-          prefix="GH₵"
-        />
+        <KpiCard label="Total Revenue" value={Math.round(revenue)} prev={Math.round(prevRevenue)} prefix="GH₵" sub={`+GH₵${fmt(Math.round(shippingRev))} shipping`} />
+        <KpiCard label="Shipping Collected" value={Math.round(shippingRev)} prev={Math.round(prevShippingRev)} prefix="GH₵" />
         <KpiCard label="Orders" value={ordCount} prev={prevOrdCount} />
         <KpiCard label="New Customers" value={custCount} prev={prevCustCount} />
-        <KpiCard
-          label="Avg Order Value"
-          value={Math.round(aov)}
-          prev={Math.round(prevAov)}
-          prefix="GH₵"
-          sub="incl. shipping"
-        />
+        <KpiCard label="Avg Order Value" value={Math.round(aov)} prev={Math.round(prevAov)} prefix="GH₵" sub="excl. cancelled" />
       </div>
 
       {/* Revenue chart + Status donut */}
@@ -327,7 +313,7 @@ export default function AnalyticsDashboard({
             <div>
               <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Revenue over time</h2>
               <p className="text-xs text-[var(--color-text-muted)]">
-                {period === '7d' ? 'daily · 7 days' : period === '30d' ? 'daily · 30 days' : period === '90d' ? 'weekly · 90 days' : 'monthly · 1 year'} · products + shipping
+                {period === '7d' ? 'daily · 7 days' : period === '30d' ? 'daily · 30 days' : period === '90d' ? 'weekly · 90 days' : 'monthly · 1 year'} · excl. cancelled
               </p>
             </div>
             <div className="flex items-center gap-3 text-xs text-[var(--color-text-muted)]">
@@ -344,8 +330,8 @@ export default function AnalyticsDashboard({
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)} />
                 <Tooltip content={<RevTooltip />} />
-                <Bar dataKey="products" stackId="a" fill="#2563EB" fillOpacity={0.85} radius={[0, 0, 0, 0]} />
-                <Bar dataKey="shipping" stackId="a" fill="#F97316" fillOpacity={0.9} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="products" stackId="a" fill="var(--color-brand)" opacity={0.85} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="shipping" stackId="a" fill="#F97316" opacity={0.85} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -356,36 +342,37 @@ export default function AnalyticsDashboard({
           {statusData.length === 0 ? (
             <div className="flex items-center justify-center py-10 text-sm text-[var(--color-text-muted)]">No orders yet</div>
           ) : (
-            <>
-              <ResponsiveContainer width="100%" height={150}>
-                <PieChart>
-                  <Pie data={statusData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" strokeWidth={0}>
-                    {statusData.map((entry) => (
-                      <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || '#94A3B8'} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v: any, name: any) => [v, name.replace(/_/g, ' ')]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-2">
-                {statusData.map((s) => (
-                  <span key={s.name} className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-                    <span className="inline-block h-2 w-2 rounded-sm shrink-0" style={{ background: STATUS_COLORS[s.name] || '#94A3B8' }} />
-                    {s.name.replace(/_/g, ' ')} ({s.value})
-                  </span>
-                ))}
-              </div>
-            </>
+            <ResponsiveContainer width="100%" height={160}>
+              <PieChart>
+                <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={40}>
+                  {statusData.map((entry) => (
+                    <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || '#94A3B8'} />
+                  ))}
+                </Pie>
+                {/* FIX: removed explicit `number` type on `v` — Recharts types it as
+                    ValueType | undefined, so we guard with ?? and String() */}
+                <Tooltip formatter={(v, name) => [v ?? 0, String(name).replace(/_/g, ' ')]} />
+              </PieChart>
+            </ResponsiveContainer>
           )}
+          <div className="mt-2 flex flex-col gap-1.5">
+            {statusData.map((s) => (
+              <div key={s.name} className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ background: STATUS_COLORS[s.name] || '#94A3B8' }} />
+                  <span className="text-[var(--color-text-muted)] capitalize">{s.name.replace(/_/g, ' ')}</span>
+                </span>
+                <span className="font-semibold text-[var(--color-text-primary)] tabular-nums">{s.value}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Top products + Funnel */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
-            Top products <span className="font-normal text-[var(--color-text-muted)]">by revenue</span>
-          </h2>
+          <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Top products by revenue</h2>
           {topProducts.length === 0 ? (
             <div className="flex items-center justify-center py-10 text-sm text-[var(--color-text-muted)]">No order data yet</div>
           ) : (
@@ -437,19 +424,15 @@ export default function AnalyticsDashboard({
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Orders by day of week</h2>
           {orders.length === 0 ? (
-            <div className="flex items-center justify-center py-10 text-sm text-[var(--color-text-muted)]">No orders in this period</div>
+            <div className="flex items-center justify-center py-10 text-sm text-[var(--color-text-muted)]">No data yet</div>
           ) : (
-            <ResponsiveContainer width="100%" height={150}>
+            <ResponsiveContainer width="100%" height={160}>
               <BarChart data={dowData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.1)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.1)" />
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip content={<DowTooltip />} />
-                <Bar dataKey="orders" radius={[4, 4, 0, 0]}>
-                  {dowData.map((entry, i) => (
-                    <Cell key={i} fill={entry.orders === maxDow && maxDow > 0 ? '#2563EB' : 'rgba(37,99,235,0.25)'} />
-                  ))}
-                </Bar>
+                <Bar dataKey="orders" fill="var(--color-brand)" opacity={0.8} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -459,10 +442,10 @@ export default function AnalyticsDashboard({
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Customer insights</h2>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'New customers', value: custCount, icon: Users },
-              { label: 'Unique buyers', value: uniqueBuyers, icon: ShoppingCart },
+              { label: 'Unique buyers', value: uniqueBuyers, icon: Users },
               { label: 'Repeat buyers', value: repeatBuyers, icon: ArrowUpRight },
-              { label: 'Avg orders / cust', value: uniqueBuyers > 0 ? parseFloat((allOrders.length / uniqueBuyers).toFixed(1)) : 0, icon: Package },
+              { label: 'Total orders', value: allOrders.length, icon: ShoppingCart },
+              { label: 'Avg orders/buyer', value: uniqueBuyers > 0 ? parseFloat((allOrders.length / uniqueBuyers).toFixed(1)) : 0, icon: Package },
             ].map(({ label, value, icon: Icon }) => (
               <div key={label} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 flex flex-col gap-2">
                 <div className="flex items-center gap-1.5">
@@ -497,7 +480,7 @@ export default function AnalyticsDashboard({
                 {allOrders.slice(0, 10).map((o) => {
                   const status = o.status?.toLowerCase() || 'pending'
                   const shippingFee = n(o.shipping_fee)
-                  const grand = totalRevenue(o)
+                  const grand = orderRevenue(o)
                   return (
                     <tr key={o.id} className="hover:bg-[var(--color-surface)] transition-colors">
                       <td className="py-3 font-mono text-xs text-[var(--color-text-muted)]">#{o.id.slice(-8).toUpperCase()}</td>
@@ -513,7 +496,7 @@ export default function AnalyticsDashboard({
                       <td className={`py-3 text-right tabular-nums ${shippingFee > 0 ? 'text-orange-500' : 'text-[var(--color-text-muted)]'}`}>
                         {shippingFee > 0 ? `GH₵${fmt(Math.round(shippingFee))}` : '—'}
                       </td>
-                      <td className="py-3 text-right font-semibold text-[var(--color-success)] tabular-nums">
+                      <td className={`py-3 text-right font-semibold tabular-nums ${status === 'cancelled' ? 'text-[var(--color-danger)] line-through' : 'text-[var(--color-success)]'}`}>
                         GH₵{fmt(Math.round(grand))}
                       </td>
                     </tr>
@@ -530,60 +513,12 @@ export default function AnalyticsDashboard({
         <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Revenue Summary</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[
-            {
-              label: 'Gross Revenue',
-              value: `GH₵${fmt(Math.round(revenue))}`,
-              note: 'all orders in period',
-              icon: TrendingUp,
-              iconColor: 'text-[var(--color-success)]',
-              iconBg: 'bg-[var(--color-success-light)]',
-              valueColor: 'text-[var(--color-text-primary)]',
-            },
-            {
-              label: 'Product Revenue',
-              value: `GH₵${fmt(Math.round(productRev))}`,
-              note: 'product prices only',
-              icon: DollarSign,
-              iconColor: 'text-[var(--color-brand)]',
-              iconBg: 'bg-[var(--color-brand-light)]',
-              valueColor: 'text-[var(--color-brand)]',
-            },
-            {
-              label: 'Shipping Collected',
-              value: `GH₵${fmt(Math.round(shippingRev))}`,
-              note: 'shipping fees billed',
-              icon: Truck,
-              iconColor: 'text-orange-500',
-              iconBg: 'bg-orange-50',
-              valueColor: 'text-orange-500',
-            },
-            {
-              label: 'Delivered Revenue',
-              value: `GH₵${fmt(Math.round(deliveredRevenue))}`,
-              note: 'confirmed delivered',
-              icon: Package,
-              iconColor: 'text-[var(--color-success)]',
-              iconBg: 'bg-[var(--color-success-light)]',
-              valueColor: 'text-[var(--color-success)]',
-            },
-            {
-              label: 'Cancelled Revenue',
-              value: `GH₵${fmt(Math.round(cancelledRevenue))}`,
-              note: 'lost to cancellations',
-              icon: TrendingDown,
-              iconColor: 'text-[var(--color-danger)]',
-              iconBg: 'bg-[var(--color-danger-light)]',
-              valueColor: 'text-[var(--color-danger)]',
-            },
-            {
-              label: 'All-time Revenue',
-              value: `GH₵${fmt(Math.round(allTimeRevenue))}`,
-              note: 'since account creation',
-              icon: Calendar,
-              iconColor: 'text-purple-600',
-              iconBg: 'bg-purple-50',
-              valueColor: 'text-[var(--color-text-primary)]',
-            },
+            { label: 'Gross Revenue', value: `GH₵${fmt(Math.round(revenue))}`, note: 'excl. cancelled orders', icon: TrendingUp, iconColor: 'text-[var(--color-success)]', iconBg: 'bg-[var(--color-success-light)]', valueColor: 'text-[var(--color-text-primary)]' },
+            { label: 'Product Revenue', value: `GH₵${fmt(Math.round(productRev))}`, note: 'product prices only', icon: DollarSign, iconColor: 'text-[var(--color-brand)]', iconBg: 'bg-[var(--color-brand-light)]', valueColor: 'text-[var(--color-brand)]' },
+            { label: 'Shipping Collected', value: `GH₵${fmt(Math.round(shippingRev))}`, note: 'shipping fees billed', icon: Truck, iconColor: 'text-orange-500', iconBg: 'bg-orange-50', valueColor: 'text-orange-500' },
+            { label: 'Delivered Revenue', value: `GH₵${fmt(Math.round(deliveredRevenue))}`, note: 'confirmed delivered', icon: Package, iconColor: 'text-[var(--color-success)]', iconBg: 'bg-[var(--color-success-light)]', valueColor: 'text-[var(--color-success)]' },
+            { label: 'Lost to Cancellations', value: `GH₵${fmt(Math.round(cancelledRevenue))}`, note: 'cancelled order value', icon: TrendingDown, iconColor: 'text-[var(--color-danger)]', iconBg: 'bg-[var(--color-danger-light)]', valueColor: 'text-[var(--color-danger)]' },
+            { label: 'All-time Revenue', value: `GH₵${fmt(Math.round(allTimeRevenue))}`, note: 'since account creation', icon: Calendar, iconColor: 'text-purple-600', iconBg: 'bg-purple-50', valueColor: 'text-[var(--color-text-primary)]' },
           ].map(({ label, value, note, icon: Icon, iconColor, iconBg, valueColor }) => (
             <div key={label} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--color-surface)]">
               <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>

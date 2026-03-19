@@ -82,26 +82,30 @@ export default async function FinancesPage({
   const n = (v: any) => parseFloat(String(v || 0)) || 0
   const fmt = (v: number) => v.toLocaleString('en-GH', { maximumFractionDigits: 0 })
 
-  // KPIs
-  const revenue = (currentOrders || []).reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
-  const prevRevenue = (prevOrders || []).reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
-  const orderCount = currentOrders?.length || 0
-  const prevOrderCount = prevOrders?.length || 0
-  const allRevenue = (allOrders || []).reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
-  const aov = orderCount > 0 ? revenue / orderCount : 0
-  const prevAov = prevOrderCount > 0 ? prevRevenue / prevOrderCount : 0
+  // ── Exclude cancelled orders from all revenue calculations ──
+  const paidCurrent  = (currentOrders || []).filter((o) => o.status !== 'cancelled')
+  const paidPrev     = (prevOrders    || []).filter((o) => o.status !== 'cancelled')
+  const paidAll      = (allOrders     || []).filter((o) => o.status !== 'cancelled')
 
-  const productRevenue = (currentOrders || []).reduce((s, o) => s + n(o.total), 0)
-  const shippingRevenue = (currentOrders || []).reduce((s, o) => s + n(o.shipping_fee), 0)
-  const prevShippingRevenue = (prevOrders || []).reduce((s, o) => s + n(o.shipping_fee), 0)
+  const revenue         = paidCurrent.reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
+  const prevRevenue     = paidPrev.reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
+  const allRevenue      = paidAll.reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
+  const productRevenue  = paidCurrent.reduce((s, o) => s + n(o.total), 0)
+  const shippingRevenue = paidCurrent.reduce((s, o) => s + n(o.shipping_fee), 0)
+  const prevShippingRevenue = paidPrev.reduce((s, o) => s + n(o.shipping_fee), 0)
 
+  // Delivered & cancelled shown separately in the revenue summary breakdown
   const deliveredRevenue = (currentOrders || [])
     .filter((o) => o.status === 'delivered')
     .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
-
   const cancelledRevenue = (currentOrders || [])
     .filter((o) => o.status === 'cancelled')
     .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
+
+  const orderCount     = currentOrders?.length || 0
+  const prevOrderCount = prevOrders?.length || 0
+  const aov     = paidCurrent.length > 0 ? revenue / paidCurrent.length : 0
+  const prevAov = paidPrev.length    > 0 ? prevRevenue / paidPrev.length : 0
 
   // Delta helper
   const delta = (cur: number, prev: number) => {
@@ -118,26 +122,26 @@ export default async function FinancesPage({
     const name = prodMap[i.product_id] || 'Unknown'
     prodRev[name] = (prodRev[name] || 0) + n(i.price) * (parseInt(String(i.quantity)) || 1)
   })
-  const topProducts = Object.entries(prodRev)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
+  const topProducts = Object.entries(prodRev).sort((a, b) => b[1] - a[1]).slice(0, 5)
   const maxProdRev = topProducts[0]?.[1] || 1
 
-  // Order status breakdown
+  // Order status breakdown (all orders for accurate counts)
   const statusMap: Record<string, number> = {}
   ;(currentOrders || []).forEach((o) => {
     const s = o.status || 'pending'
     statusMap[s] = (statusMap[s] || 0) + 1
   })
 
-  // Monthly revenue for mini sparkline (last 6 months)
+  // Monthly revenue — cancelled excluded
   const monthlyData: { label: string; revenue: number; products: number; shipping: number }[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date()
     d.setMonth(d.getMonth() - i)
     const key = d.toISOString().slice(0, 7)
     const label = d.toLocaleDateString('en', { month: 'short' })
-    const monthOrders = (allOrders || []).filter((o) => o.created_at?.slice(0, 7) === key)
+    const monthOrders = (allOrders || []).filter(
+      (o) => o.created_at?.slice(0, 7) === key && o.status !== 'cancelled'
+    )
     const monthProducts = monthOrders.reduce((s, o) => s + n(o.total), 0)
     const monthShipping = monthOrders.reduce((s, o) => s + n(o.shipping_fee), 0)
     monthlyData.push({ label, revenue: Math.round(monthProducts + monthShipping), products: Math.round(monthProducts), shipping: Math.round(monthShipping) })
@@ -170,7 +174,7 @@ export default async function FinancesPage({
       color: 'text-orange-500',
       bg: 'bg-orange-50',
     },
-        {
+    {
       label: 'Orders',
       value: String(orderCount),
       sub: `${statusMap['pending'] || 0} pending`,
@@ -182,7 +186,7 @@ export default async function FinancesPage({
     {
       label: 'Avg Order Value',
       value: `GH₵${fmt(Math.round(aov))}`,
-      sub: 'per order',
+      sub: 'excl. cancelled',
       delta: delta(aov, prevAov),
       icon: Receipt,
       color: 'text-[var(--color-warning)]',
@@ -230,34 +234,19 @@ export default async function FinancesPage({
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(({ label, value, sub, delta: d, icon: Icon, color, bg }) => (
-          <div
-            key={label}
-            className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm flex flex-col gap-3"
-          >
+          <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-                {label}
-              </span>
+              <span className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-muted)]">{label}</span>
               <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${bg}`}>
                 <Icon className={`h-4 w-4 ${color}`} />
               </div>
             </div>
-            <span className="text-xl sm:text-2xl font-bold text-[var(--color-text-primary)] tabular-nums">
-              {value}
-            </span>
+            <span className="text-xl sm:text-2xl font-bold text-[var(--color-text-primary)] tabular-nums">{value}</span>
             <div className="flex items-center justify-between">
               <span className="text-xs text-[var(--color-text-muted)]">{sub}</span>
               {d.dir !== 'flat' && (
-                <span
-                  className={`flex items-center gap-0.5 text-xs font-semibold ${
-                    d.dir === 'up' ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'
-                  }`}
-                >
-                  {d.dir === 'up' ? (
-                    <ArrowUpRight className="h-3 w-3" />
-                  ) : (
-                    <ArrowDownRight className="h-3 w-3" />
-                  )}
+                <span className={`flex items-center gap-0.5 text-xs font-semibold ${d.dir === 'up' ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}`}>
+                  {d.dir === 'up' ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                   {d.pct}%
                 </span>
               )}
@@ -266,24 +255,20 @@ export default async function FinancesPage({
         ))}
       </div>
 
-      {/* Monthly Revenue Bar Chart + Status Breakdown */}
+      {/* Monthly Revenue Chart + Status Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* Monthly bars */}
         <div className="lg:col-span-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
-                Monthly Revenue
-              </h2>
-              <p className="text-xs text-[var(--color-text-muted)]">Last 6 months</p>
+              <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Monthly Revenue</h2>
+              <p className="text-xs text-[var(--color-text-muted)]">Last 6 months · excl. cancelled</p>
             </div>
             <BarChart3 className="h-4 w-4 text-[var(--color-text-muted)]" />
           </div>
           {monthlyData.every((m) => m.revenue === 0) ? (
-            <div className="flex items-center justify-center py-10 text-sm text-[var(--color-text-muted)]">
-              No revenue data yet
-            </div>
+            <div className="flex items-center justify-center py-10 text-sm text-[var(--color-text-muted)]">No revenue data yet</div>
           ) : (
             <div className="flex items-end gap-2 h-40">
               {monthlyData.map((m) => {
@@ -294,7 +279,6 @@ export default async function FinancesPage({
                     <span className="text-[10px] text-[var(--color-text-muted)] tabular-nums">
                       {m.revenue > 0 ? `${Math.round(m.revenue / 1000)}k` : ''}
                     </span>
-                    {/* Tooltip */}
                     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col gap-0.5 bg-gray-900 text-white text-[10px] rounded-lg px-2.5 py-2 whitespace-nowrap z-10 shadow-xl pointer-events-none">
                       <span className="font-semibold">{m.label}</span>
                       <span>Products: GH₵{fmt(m.products)}</span>
@@ -302,7 +286,6 @@ export default async function FinancesPage({
                       <span className="border-t border-gray-700 pt-0.5 font-semibold">Total: GH₵{fmt(m.revenue)}</span>
                     </div>
                     <div className="w-full flex flex-col items-end justify-end overflow-hidden rounded-t-lg" style={{ height: '100px' }}>
-                      {/* Stacked bar: product (brand) + shipping (orange) on top */}
                       <div className="w-full flex flex-col justify-end" style={{ height: `${Math.max(totalPct, m.revenue > 0 ? 4 : 0)}%` }}>
                         <div className="w-full bg-orange-400 opacity-90" style={{ height: `${shippingPct}%`, minHeight: m.shipping > 0 ? '3px' : '0' }} />
                         <div className="w-full bg-[var(--color-brand)] opacity-80 flex-1" />
@@ -314,7 +297,6 @@ export default async function FinancesPage({
               })}
             </div>
           )}
-          {/* Chart legend */}
           <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--color-border)]">
             <div className="flex items-center gap-1.5">
               <div className="h-2.5 w-2.5 rounded-sm bg-[var(--color-brand)] opacity-80" />
@@ -329,23 +311,23 @@ export default async function FinancesPage({
 
         {/* Status breakdown */}
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-5">
-            Order Status
-          </h2>
+          <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-5">Order Status</h2>
           {orderCount === 0 ? (
-            <div className="flex items-center justify-center py-10 text-sm text-[var(--color-text-muted)]">
-              No orders yet
-            </div>
+            <div className="flex items-center justify-center py-10 text-sm text-[var(--color-text-muted)]">No orders yet</div>
           ) : (
             <div className="flex flex-col gap-3">
               {[
-                { label: 'Pending', key: 'pending', color: 'bg-[var(--color-warning)]' },
-                { label: 'Processing', key: 'processing', color: 'bg-[var(--color-brand)]' },
-                { label: 'Shipped', key: 'shipped', color: 'bg-sky-400' },
-                { label: 'Delivered', key: 'delivered', color: 'bg-[var(--color-success)]' },
-                { label: 'Cancelled', key: 'cancelled', color: 'bg-[var(--color-danger)]' },
+                { label: 'Pending',         key: 'pending',         color: 'bg-[var(--color-warning)]' },
+                { label: 'Product Paid',    key: 'product_paid',    color: 'bg-blue-500' },
+                { label: 'Processing',      key: 'processing',      color: 'bg-[var(--color-brand)]' },
+                { label: 'Arrived',         key: 'arrived',         color: 'bg-purple-500' },
+                { label: 'Shipping Billed', key: 'shipping_billed', color: 'bg-orange-400' },
+                { label: 'Shipping Paid',   key: 'shipping_paid',   color: 'bg-emerald-500' },
+                { label: 'Delivered',       key: 'delivered',       color: 'bg-[var(--color-success)]' },
+                { label: 'Cancelled',       key: 'cancelled',       color: 'bg-[var(--color-danger)]' },
               ].map(({ label, key, color }) => {
                 const count = statusMap[key] || 0
+                if (count === 0) return null
                 const pct = orderCount > 0 ? Math.round((count / orderCount) * 100) : 0
                 return (
                   <div key={key}>
@@ -356,10 +338,7 @@ export default async function FinancesPage({
                       </span>
                     </div>
                     <div className="h-1.5 rounded-full bg-[var(--color-surface)] overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${color} transition-all`}
-                        style={{ width: `${pct}%` }}
-                      />
+                      <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 )
@@ -375,26 +354,18 @@ export default async function FinancesPage({
         {/* Top products */}
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
-            Top Products{' '}
-            <span className="font-normal text-[var(--color-text-muted)]">by revenue</span>
+            Top Products <span className="font-normal text-[var(--color-text-muted)]">by revenue</span>
           </h2>
           {topProducts.length === 0 ? (
-            <div className="flex items-center justify-center py-10 text-sm text-[var(--color-text-muted)]">
-              No sales data yet
-            </div>
+            <div className="flex items-center justify-center py-10 text-sm text-[var(--color-text-muted)]">No sales data yet</div>
           ) : (
             <div className="flex flex-col gap-3">
               {topProducts.map(([name, rev], i) => (
                 <div key={name} className="flex items-center gap-3">
-                  <span className="w-5 h-5 rounded-full bg-[var(--color-surface)] text-xs font-bold text-[var(--color-text-muted)] flex items-center justify-center shrink-0">
-                    {i + 1}
-                  </span>
+                  <span className="w-5 h-5 rounded-full bg-[var(--color-surface)] text-xs font-bold text-[var(--color-text-muted)] flex items-center justify-center shrink-0">{i + 1}</span>
                   <span className="flex-1 text-sm text-[var(--color-text-primary)] truncate">{name}</span>
                   <div className="w-24 h-1.5 rounded-full bg-[var(--color-surface)] overflow-hidden shrink-0">
-                    <div
-                      className="h-full rounded-full bg-[var(--color-brand)]"
-                      style={{ width: `${Math.round((rev / maxProdRev) * 100)}%` }}
-                    />
+                    <div className="h-full rounded-full bg-[var(--color-brand)]" style={{ width: `${Math.round((rev / maxProdRev) * 100)}%` }} />
                   </div>
                   <span className="text-sm font-semibold text-[var(--color-text-primary)] w-24 text-right shrink-0 tabular-nums">
                     GH₵{fmt(Math.round(rev))}
@@ -407,70 +378,17 @@ export default async function FinancesPage({
 
         {/* Revenue summary */}
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
-            Revenue Summary
-          </h2>
+          <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Revenue Summary</h2>
           <div className="flex flex-col gap-3">
             {[
-              {
-                label: 'Gross Revenue (Total)',
-                value: `GH₵${fmt(Math.round(revenue))}`,
-                note: 'all orders in period',
-                color: 'text-[var(--color-text-primary)]',
-                icon: TrendingUp,
-                iconColor: 'text-[var(--color-success)]',
-                iconBg: 'bg-[var(--color-success-light)]',
-              },
-              {
-                label: 'Product Revenue',
-                value: `GH₵${fmt(Math.round(productRevenue))}`,
-                note: 'product prices only',
-                color: 'text-[var(--color-brand)]',
-                icon: DollarSign,
-                iconColor: 'text-[var(--color-brand)]',
-                iconBg: 'bg-[var(--color-brand-light)]',
-              },
-              {
-                label: 'Shipping Collected',
-                value: `GH₵${fmt(Math.round(shippingRevenue))}`,
-                note: 'shipping fees billed',
-                color: 'text-orange-500',
-                icon: Truck,
-                iconColor: 'text-orange-500',
-                iconBg: 'bg-orange-50',
-              },
-              {
-                label: 'Delivered Revenue',
-                value: `GH₵${fmt(Math.round(deliveredRevenue))}`,
-                note: 'confirmed delivered',
-                color: 'text-[var(--color-success)]',
-                icon: Package,
-                iconColor: 'text-[var(--color-brand)]',
-                iconBg: 'bg-[var(--color-brand-light)]',
-              },
-              {
-                label: 'Cancelled Revenue',
-                value: `GH₵${fmt(Math.round(cancelledRevenue))}`,
-                note: 'lost to cancellations',
-                color: 'text-[var(--color-danger)]',
-                icon: TrendingDown,
-                iconColor: 'text-[var(--color-danger)]',
-                iconBg: 'bg-[var(--color-danger-light)]',
-              },
-              {
-                label: 'All-time Revenue',
-                value: `GH₵${fmt(Math.round(allRevenue))}`,
-                note: 'since account creation',
-                color: 'text-[var(--color-text-primary)]',
-                icon: Calendar,
-                iconColor: 'text-purple-600',
-                iconBg: 'bg-purple-50',
-              },
+              { label: 'Gross Revenue (excl. cancelled)', value: `GH₵${fmt(Math.round(revenue))}`, note: 'all non-cancelled orders', color: 'text-[var(--color-text-primary)]', icon: TrendingUp, iconColor: 'text-[var(--color-success)]', iconBg: 'bg-[var(--color-success-light)]' },
+              { label: 'Product Revenue', value: `GH₵${fmt(Math.round(productRevenue))}`, note: 'product prices only', color: 'text-[var(--color-brand)]', icon: DollarSign, iconColor: 'text-[var(--color-brand)]', iconBg: 'bg-[var(--color-brand-light)]' },
+              { label: 'Shipping Collected', value: `GH₵${fmt(Math.round(shippingRevenue))}`, note: 'shipping fees billed', color: 'text-orange-500', icon: Truck, iconColor: 'text-orange-500', iconBg: 'bg-orange-50' },
+              { label: 'Delivered Revenue', value: `GH₵${fmt(Math.round(deliveredRevenue))}`, note: 'confirmed delivered', color: 'text-[var(--color-success)]', icon: Package, iconColor: 'text-[var(--color-brand)]', iconBg: 'bg-[var(--color-brand-light)]' },
+              { label: 'Lost to Cancellations', value: `GH₵${fmt(Math.round(cancelledRevenue))}`, note: 'cancelled order value', color: 'text-[var(--color-danger)]', icon: TrendingDown, iconColor: 'text-[var(--color-danger)]', iconBg: 'bg-[var(--color-danger-light)]' },
+              { label: 'All-time Revenue', value: `GH₵${fmt(Math.round(allRevenue))}`, note: 'since account creation', color: 'text-[var(--color-text-primary)]', icon: Calendar, iconColor: 'text-purple-600', iconBg: 'bg-purple-50' },
             ].map(({ label, value, note, color, icon: Icon, iconColor, iconBg }) => (
-              <div
-                key={label}
-                className="flex items-center justify-between p-3 rounded-xl bg-[var(--color-surface)]"
-              >
+              <div key={label} className="flex items-center justify-between p-3 rounded-xl bg-[var(--color-surface)]">
                 <div className="flex items-center gap-3">
                   <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconBg}`}>
                     <Icon className={`h-4 w-4 ${iconColor}`} />
@@ -490,27 +408,17 @@ export default async function FinancesPage({
       {/* Recent high-value orders */}
       <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
-          Highest Value Orders{' '}
-          <span className="font-normal text-[var(--color-text-muted)]">in this period</span>
+          Highest Value Orders <span className="font-normal text-[var(--color-text-muted)]">in this period</span>
         </h2>
         {orderCount === 0 ? (
-          <div className="flex items-center justify-center py-8 text-sm text-[var(--color-text-muted)]">
-            No orders in this period
-          </div>
+          <div className="flex items-center justify-center py-8 text-sm text-[var(--color-text-muted)]">No orders in this period</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--color-border)]">
                   {['Order', 'Status', 'Date', 'Amount'].map((h, i) => (
-                    <th
-                      key={h}
-                      className={`pb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] ${
-                        i === 3 ? 'text-right' : 'text-left'
-                      }`}
-                    >
-                      {h}
-                    </th>
+                    <th key={h} className={`pb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] ${i === 3 ? 'text-right' : 'text-left'}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -521,34 +429,27 @@ export default async function FinancesPage({
                   .map((o) => {
                     const status = o.status?.toLowerCase() || 'pending'
                     const statusColors: Record<string, string> = {
-                      pending: 'bg-[var(--color-warning-light)] text-[var(--color-warning)]',
-                      processing: 'bg-[var(--color-brand-light)] text-[var(--color-brand)]',
-                      shipped: 'bg-sky-50 text-sky-600',
-                      delivered: 'bg-[var(--color-success-light)] text-[var(--color-success)]',
-                      cancelled: 'bg-[var(--color-danger-light)] text-[var(--color-danger)]',
+                      pending:         'bg-[var(--color-warning-light)] text-[var(--color-warning)]',
+                      product_paid:    'bg-blue-50 text-blue-700',
+                      processing:      'bg-[var(--color-brand-light)] text-[var(--color-brand)]',
+                      arrived:         'bg-purple-50 text-purple-700',
+                      shipping_billed: 'bg-orange-50 text-orange-700',
+                      shipping_paid:   'bg-emerald-50 text-emerald-700',
+                      delivered:       'bg-[var(--color-success-light)] text-[var(--color-success)]',
+                      cancelled:       'bg-[var(--color-danger-light)] text-[var(--color-danger)]',
                     }
                     return (
                       <tr key={o.id} className="hover:bg-[var(--color-surface)] transition-colors">
-                        <td className="py-3 font-mono text-xs text-[var(--color-text-muted)]">
-                          #{o.id.slice(-8).toUpperCase()}
-                        </td>
+                        <td className="py-3 font-mono text-xs text-[var(--color-text-muted)]">#{o.id.slice(-8).toUpperCase()}</td>
                         <td className="py-3">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${
-                              statusColors[status] || 'bg-gray-100 text-gray-600'
-                            }`}
-                          >
-                            {status}
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${statusColors[status] || 'bg-gray-100 text-gray-600'}`}>
+                            {status.replace(/_/g, ' ')}
                           </span>
                         </td>
                         <td className="py-3 text-xs text-[var(--color-text-muted)]">
-                          {new Date(o.created_at).toLocaleDateString('en', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
+                          {new Date(o.created_at).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </td>
-                        <td className="py-3 text-right font-semibold text-[var(--color-success)] tabular-nums">
+                        <td className={`py-3 text-right font-semibold tabular-nums ${status === 'cancelled' ? 'text-[var(--color-danger)] line-through' : 'text-[var(--color-success)]'}`}>
                           GH₵{fmt(Math.round(n(o.total)))}
                         </td>
                       </tr>
@@ -559,6 +460,7 @@ export default async function FinancesPage({
           </div>
         )}
       </div>
+
     </div>
   )
 }

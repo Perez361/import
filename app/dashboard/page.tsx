@@ -8,6 +8,17 @@ export const metadata = {
   title: 'Dashboard – ImportFlow PRO',
 }
 
+function getTimeAgo(dateStr: string) {
+  const now = new Date()
+  const date = new Date(dateStr)
+  const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
+  if (diff < 60) return 'just now'
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`
+  if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`
+  return date.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export default async function DashboardPage() {
   const user = await getAuthenticatedUser()
   if (!user) redirect('/login')
@@ -18,7 +29,6 @@ export default async function DashboardPage() {
 
   const supabase = await createClient()
 
-  // Fetch all real data in parallel
   const [
     { count: productCount },
     { count: orderCount },
@@ -56,25 +66,25 @@ export default async function DashboardPage() {
       .limit(5),
   ])
 
-  // Pending orders count
-  const pendingCount = orders?.filter(
-    (o) => o.status === 'pending'
-  ).length ?? 0
+  const pendingCount = orders?.filter((o) => o.status === 'pending').length ?? 0
 
-  // Total revenue
-  const totalRevenue = orders?.reduce(
+  // ── Exclude cancelled orders from all revenue calculations ──
+  const paidOrders = orders?.filter((o) => o.status !== 'cancelled') ?? []
+
+  const totalRevenue = paidOrders.reduce(
     (sum, o) => sum + (parseFloat(String(o.total)) || 0) + (parseFloat(String(o.shipping_fee)) || 0),
     0
-  ) ?? 0
+  )
 
-  const productRevenue = orders?.reduce(
+  const productRevenue = paidOrders.reduce(
     (sum, o) => sum + (parseFloat(String(o.total)) || 0),
     0
-  ) ?? 0
-  const shippingRevenue = orders?.reduce(
+  )
+
+  const shippingRevenue = paidOrders.reduce(
     (sum, o) => sum + (parseFloat(String(o.shipping_fee)) || 0),
     0
-  ) ?? 0
+  )
 
   const fmt = (n: number) =>
     n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
@@ -103,7 +113,7 @@ export default async function DashboardPage() {
       value: `GH₵${fmt(totalRevenue)}`,
       sub: `Products GH₵${fmt(productRevenue)} · Shipping GH₵${fmt(shippingRevenue)}`,
       icon: TrendingUp,
-      note: 'all time',
+      note: 'all time (excl. cancelled)',
     },
     {
       label: 'Shipping Collected',
@@ -224,42 +234,14 @@ export default async function DashboardPage() {
             </div>
             <div className="flex flex-col gap-0.5">
               <dt className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
-                Email Address
+                Email
               </dt>
               <dd className="text-sm font-medium text-[var(--color-text-primary)]">{email}</dd>
             </div>
-            {importer?.phone && (
-              <div className="flex flex-col gap-0.5">
-                <dt className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
-                  Phone
-                </dt>
-                <dd className="text-sm font-medium text-[var(--color-text-primary)]">{importer.phone}</dd>
-              </div>
-            )}
-            {importer?.location && (
-              <div className="flex flex-col gap-0.5">
-                <dt className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
-                  Location
-                </dt>
-                <dd className="text-sm font-medium text-[var(--color-text-primary)]">{importer.location}</dd>
-              </div>
-            )}
           </dl>
         </div>
 
       </main>
     </div>
   )
-}
-
-function getTimeAgo(dateStr: string): string {
-  const now = new Date()
-  const date = new Date(dateStr)
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-  if (diff < 60) return 'just now'
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`
-  if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`
-  return date.toLocaleDateString('en', { month: 'short', day: 'numeric' })
 }
