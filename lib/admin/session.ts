@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin-client'
 import { redirect } from 'next/navigation'
 
 export interface AdminUser {
@@ -11,11 +12,14 @@ export interface AdminUser {
 }
 
 export async function getAdminUser(): Promise<AdminUser | null> {
+  // Cookie-based client to verify identity
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) return null
 
-  const { data, error } = await supabase
+  // Service-role client bypasses RLS on the admins table
+  const adminClient = createAdminClient()
+  const { data, error } = await adminClient
     .from('admins')
     .select('*')
     .eq('user_id', user.id)

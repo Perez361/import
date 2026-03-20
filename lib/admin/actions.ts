@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin-client'
 import { requireAdmin, requireSuperAdmin } from '@/lib/admin/session'
 
 export async function updateImporterSubscriptionAction(
@@ -132,7 +133,9 @@ export async function adminLoginAction(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error || !data.user) return { error: error?.message || 'Login failed' }
 
-  const { data: adminRecord } = await supabase
+  // Use service-role client to bypass RLS — session cookie may not be set yet
+  const adminClient = createAdminClient()
+  const { data: adminRecord } = await adminClient
     .from('admins')
     .select('id')
     .eq('user_id', data.user.id)
