@@ -19,6 +19,7 @@ export default function Navbar() {
         <div className="hidden sm:flex items-center gap-1 text-sm text-white/60">
           <a href="#features" className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-white/10 transition-all">Features</a>
           <a href="#how-it-works" className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-white/10 transition-all">How it works</a>
+          <a href="#pricing" className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-white/10 transition-all">Pricing</a>
         </div>
 
         {/* Actions */}
