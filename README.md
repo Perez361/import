@@ -1,26 +1,24 @@
-# import
->>>>>>> 88be28805b5c0ec7937b60ecf6ff58978c8a893a
-=======
 # ImportFlow PRO
 
-Next.js + Supabase app for importation business management.
+Next.js + Supabase SaaS for mini-importation business management.
 
 ## Features
-- Auth (login/register) with Supabase
-- Importers profile schema
-- Dashboard
+- Dual-role auth (importers/customers) with Supabase SSR + Google OAuth
+- Admin dashboard: products, orders, shipments, customers, pre-orders, analytics, finances, storefront customization
+- Customer storefronts: `/store/[slug]` with cart, orders, profile
+- Mobile-responsive, Tailwind v4, React 19, Zod validation
 
 ## Getting Started
-
 ```bash
 npm install
 npm run dev
 ```
-
-See http://localhost:3000
+Visit http://localhost:3000
 
 ## Deploy
-Vercel + Supabase
-=======
-# import
->>>>>>> 88be28805b5c0ec7937b60ecf6ff58978c8a893a
+Vercel + Supabase (migrations in `/supabase/migrations/`)
+
+## Architecture
+- App Router, server actions
+- Supabase Postgres (products/importers/customers/carts/orders)
+- Multi-tenancy via store slugs
