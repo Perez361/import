@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { User, Save, X, Package, Clock, Truck } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { createCustomerClient } from '@/lib/supabase/customer-client'
 import { useStore } from '@/components/store/StoreContext'
 import { toast } from 'sonner'
-
 
 interface CustomerProfile {
   full_name: string
@@ -14,9 +13,6 @@ interface CustomerProfile {
   email: string
   location: string
   shipping_address: string
-  importers: {
-    store_slug: string
-  }
 }
 
 interface Order {
@@ -34,7 +30,12 @@ interface Order {
   }[]
 }
 
-export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
+interface Props {
+  slug: string
+  onClose: () => void
+}
+
+export default function ProfileDrawer({ slug, onClose }: Props) {
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,7 +44,7 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
     username: '',
     contact: '',
     location: '',
-    shipping_address: ''
+    shipping_address: '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -52,19 +53,32 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
   useEffect(() => {
     if (!store.customerId || store.loading) return
 
+    let cancelled = false
     const fetchData = async () => {
       setLoading(true)
-      const supabase = createClient()
+      // Use the customer-scoped client so the session is correct
+      const supabase = createCustomerClient(slug)
 
-      // Fetch profile
-      const { data: customer } = await supabase
-        .from('customers')
-        .select(`
-          *,
-          importers!store_id(store_slug)
-        `)
-        .eq('id', store.customerId)
-        .single()
+      const [{ data: customer }, { data: orderData }] = await Promise.all([
+        supabase
+          .from('customers')
+          .select('*')
+          .eq('id', store.customerId!)
+          .single(),
+        supabase
+          .from('orders')
+          .select(`
+            *,
+            order_items (
+              *,
+              products (*)
+            )
+          `)
+          .eq('customer_id', store.customerId!)
+          .order('created_at', { ascending: false }),
+      ])
+
+      if (cancelled) return
 
       if (customer) {
         setProfile(customer)
@@ -73,63 +87,49 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
           username: customer.username || '',
           contact: customer.contact || '',
           location: customer.location || '',
-          shipping_address: customer.shipping_address || ''
+          shipping_address: customer.shipping_address || '',
         })
       }
-
-      // Fetch orders
-      const { data: orderData } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            *,
-            products (*)
-          )
-        `)
-        .eq('customer_id', store.customerId)
-        .order('created_at', { ascending: false })
-
       setOrders(orderData || [])
-
       setLoading(false)
     }
 
     fetchData()
-  }, [store.customerId])
+    return () => { cancelled = true }
+  }, [store.customerId, store.loading, slug])
 
-    const handleSubmit = async (e: React.FormEvent) => {
-      e.preventDefault()
-      setSaving(true)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
 
-      const supabase = createClient()
+    // Use the customer-scoped client for writes too
+    const supabase = createCustomerClient(slug)
 
-      const { error } = await supabase
+    const { error } = await supabase
+      .from('customers')
+      .update({
+        full_name: formData.full_name,
+        username: formData.username,
+        contact: formData.contact,
+        location: formData.location,
+        shipping_address: formData.shipping_address,
+      })
+      .eq('id', store.customerId!)
+
+    if (error) {
+      toast.error('Update failed')
+    } else {
+      toast.success('Profile updated!')
+      const { data: updatedCustomer } = await supabase
         .from('customers')
-        .update({
-          full_name: formData.full_name,
-          username: formData.username,
-          contact: formData.contact,
-          location: formData.location,
-          shipping_address: formData.shipping_address
-        })
+        .select('*')
         .eq('id', store.customerId!)
-
-      if (error) {
-        toast.error('Update failed')
-      } else {
-        toast.success('Profile updated!')
-        // Refresh profile
-        const { data: updatedCustomer } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('id', store.customerId!)
-          .single()
-        setProfile(updatedCustomer)
-      }
-
-      setSaving(false)
+        .single()
+      setProfile(updatedCustomer)
     }
+
+    setSaving(false)
+  }
 
   if (loading) {
     return (
@@ -169,38 +169,25 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
           {/* Edit Profile Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 gap-4">
-              <input
-                type="text"
-                value={formData.full_name}
-                onChange={(e) => setFormData({...formData, full_name: e.target.value})}
-                placeholder="Full Name"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <input
-                type="text"
-                value={formData.username}
-                onChange={(e) => setFormData({...formData, username: e.target.value})}
-                placeholder="Username"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <input
-                type="tel"
-                value={formData.contact}
-                onChange={(e) => setFormData({...formData, contact: e.target.value})}
-                placeholder="Contact Number"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => setFormData({...formData, location: e.target.value})}
-                placeholder="Location"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              {[
+                { key: 'full_name', placeholder: 'Full Name', type: 'text' },
+                { key: 'username', placeholder: 'Username', type: 'text' },
+                { key: 'contact', placeholder: 'Contact Number', type: 'tel' },
+                { key: 'location', placeholder: 'Location', type: 'text' },
+              ].map(({ key, placeholder, type }) => (
+                <input
+                  key={key}
+                  type={type}
+                  value={(formData as any)[key]}
+                  onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                  placeholder={placeholder}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              ))}
               <textarea
                 rows={3}
                 value={formData.shipping_address}
-                onChange={(e) => setFormData({...formData, shipping_address: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, shipping_address: e.target.value })}
                 placeholder="Shipping Address"
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
@@ -221,9 +208,7 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
               Order History ({orders.length})
             </h3>
             {orders.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No orders yet
-              </div>
+              <div className="text-center py-8 text-gray-500">No orders yet</div>
             ) : (
               <div className="space-y-3">
                 {orders.map((order) => (
@@ -241,13 +226,13 @@ export default function ProfileDrawer({ slug, onClose }: { slug: string; onClose
                       </div>
                       <div className="flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded-full">
                         <Truck className="h-3 w-3" />
-                        {order.status.replace('_', ' ').toUpperCase()}
+                        {order.status.replace(/_/g, ' ').toUpperCase()}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      {order.order_items.map((item, index) => (
+                      {order.order_items?.map((item, index) => (
                         <div key={index} className="text-gray-600">
-                          {item.products.name} x{item.quantity}
+                          {item.products?.name} x{item.quantity}
                         </div>
                       ))}
                     </div>

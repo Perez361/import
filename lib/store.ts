@@ -5,40 +5,23 @@ export async function createClient() {
   return createServerSupabase()
 }
 
-// Get importer by store_slug
+// Get importer by store_slug — single case-insensitive indexed lookup
 export async function getImporterBySlug(slug: string) {
   const supabase = await createClient()
 
-  // First try exact store_slug match
   const { data, error } = await supabase
     .from('importers')
     .select('*')
-    .eq('store_slug', slug)
-    .single()
-
-  if (data) return data
-
-  // Fallback 1: case-insensitive store_slug
-  const { data: fallbackData } = await supabase
-    .from('importers')
-    .select('*')
-    .ilike('store_slug', `%${slug}%`)
+    .ilike('store_slug', slug)
     .limit(1)
-    .single()
+    .maybeSingle()
 
-  if (fallbackData) return fallbackData
+  if (error) {
+    console.error('[getImporterBySlug] error:', error.message)
+    return null
+  }
 
-  // Fallback 2: username
-  const { data: fallbackData2 } = await supabase
-    .from('importers')
-    .select('*')
-    .ilike('username', `%${slug}%`)
-    .limit(1)
-    .single()
-
-  if (fallbackData2) return fallbackData2
-
-  return null
+  return data ?? null
 }
 
 // Get products by store slug — explicitly excludes internal fields

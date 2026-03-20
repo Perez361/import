@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation'
 import { getAuthenticatedUser } from '@/lib/auth/session'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAnalyticsData, n, type AnalyticsPeriod } from '@/lib/analytics'
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart,
-  Users, Package, ArrowUpRight, ArrowDownRight, Minus,
-  BarChart3, Calendar, Receipt, Truck
+  Users, Package, ArrowUpRight, ArrowDownRight,
+  BarChart3, Calendar, Receipt, Truck,
 } from 'lucide-react'
 
 export const metadata = {
@@ -20,94 +21,51 @@ export default async function FinancesPage({
   if (!user) redirect('/login')
 
   const params = await searchParams
-  const period = params.period || '30d'
-  const days = { '7d': 7, '30d': 30, '90d': 90, '1y': 365 }[period] || 30
+  const period = (params.period as AnalyticsPeriod) || '30d'
 
   const supabase = await createClient()
 
-  const since = new Date()
-  since.setDate(since.getDate() - days)
-  const sinceISO = since.toISOString()
+  // Shared data fetch
+  const {
+    orders: currentOrders,
+    prevOrders,
+    allOrders,
+    products,
+    orderItems,
+  } = await fetchAnalyticsData(user.id, period)
 
-  const prevSince = new Date()
-  prevSince.setDate(prevSince.getDate() - days * 2)
-  const prevSinceISO = prevSince.toISOString()
+  // Customer count (separate lightweight query)
+  const { count: customerCount } = await supabase
+    .from('customers')
+    .select('*', { count: 'exact', head: true })
+    .eq('store_id', user.id)
 
-  const [
-    { data: currentOrders },
-    { data: prevOrders },
-    { data: allOrders },
-    { data: orderItems },
-    { data: products },
-    { count: customerCount },
-  ] = await Promise.all([
-    supabase
-      .from('orders')
-      .select('id, total, shipping_fee, status, created_at, customer_id')
-      .eq('store_id', user.id)
-      .gte('created_at', sinceISO),
-    supabase
-      .from('orders')
-      .select('id, total, shipping_fee, status, created_at')
-      .eq('store_id', user.id)
-      .gte('created_at', prevSinceISO)
-      .lt('created_at', sinceISO),
-    supabase
-      .from('orders')
-      .select('id, total, shipping_fee, status, created_at')
-      .eq('store_id', user.id),
-    supabase
-      .from('order_items')
-      .select('product_id, quantity, price')
-      .in(
-        'order_id',
-        (
-          await supabase
-            .from('orders')
-            .select('id')
-            .eq('store_id', user.id)
-            .gte('created_at', sinceISO)
-        ).data?.map((o) => o.id) || []
-      ),
-    supabase
-      .from('products')
-      .select('id, name, price')
-      .eq('importer_id', user.id),
-    supabase
-      .from('customers')
-      .select('*', { count: 'exact', head: true })
-      .eq('store_id', user.id),
-  ])
-
-  const n = (v: any) => parseFloat(String(v || 0)) || 0
   const fmt = (v: number) => v.toLocaleString('en-GH', { maximumFractionDigits: 0 })
 
-  // ── Exclude cancelled orders from all revenue calculations ──
-  const paidCurrent  = (currentOrders || []).filter((o) => o.status !== 'cancelled')
-  const paidPrev     = (prevOrders    || []).filter((o) => o.status !== 'cancelled')
-  const paidAll      = (allOrders     || []).filter((o) => o.status !== 'cancelled')
+  // ── Exclude cancelled from revenue calculations ──
+  const paidCurrent  = currentOrders.filter((o) => o.status !== 'cancelled')
+  const paidPrev     = prevOrders.filter((o) => o.status !== 'cancelled')
+  const paidAll      = allOrders.filter((o) => o.status !== 'cancelled')
 
-  const revenue         = paidCurrent.reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
-  const prevRevenue     = paidPrev.reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
-  const allRevenue      = paidAll.reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
-  const productRevenue  = paidCurrent.reduce((s, o) => s + n(o.total), 0)
-  const shippingRevenue = paidCurrent.reduce((s, o) => s + n(o.shipping_fee), 0)
+  const revenue          = paidCurrent.reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
+  const prevRevenue      = paidPrev.reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
+  const allRevenue       = paidAll.reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
+  const productRevenue   = paidCurrent.reduce((s, o) => s + n(o.total), 0)
+  const shippingRevenue  = paidCurrent.reduce((s, o) => s + n(o.shipping_fee), 0)
   const prevShippingRevenue = paidPrev.reduce((s, o) => s + n(o.shipping_fee), 0)
 
-  // Delivered & cancelled shown separately in the revenue summary breakdown
-  const deliveredRevenue = (currentOrders || [])
+  const deliveredRevenue = currentOrders
     .filter((o) => o.status === 'delivered')
     .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
-  const cancelledRevenue = (currentOrders || [])
+  const cancelledRevenue = currentOrders
     .filter((o) => o.status === 'cancelled')
     .reduce((s, o) => s + n(o.total) + n(o.shipping_fee), 0)
 
-  const orderCount     = currentOrders?.length || 0
-  const prevOrderCount = prevOrders?.length || 0
+  const orderCount     = currentOrders.length
+  const prevOrderCount = prevOrders.length
   const aov     = paidCurrent.length > 0 ? revenue / paidCurrent.length : 0
   const prevAov = paidPrev.length    > 0 ? prevRevenue / paidPrev.length : 0
 
-  // Delta helper
   const delta = (cur: number, prev: number) => {
     if (prev === 0) return { pct: 0, dir: 'flat' as const }
     const pct = Math.round(((cur - prev) / prev) * 100)
@@ -116,30 +74,30 @@ export default async function FinancesPage({
 
   // Top products by revenue
   const prodMap: Record<string, string> = {}
-  ;(products || []).forEach((p) => (prodMap[p.id] = p.name))
+  products.forEach((p) => (prodMap[p.id] = p.name))
   const prodRev: Record<string, number> = {}
-  ;(orderItems || []).forEach((i) => {
+  orderItems.forEach((i) => {
     const name = prodMap[i.product_id] || 'Unknown'
     prodRev[name] = (prodRev[name] || 0) + n(i.price) * (parseInt(String(i.quantity)) || 1)
   })
   const topProducts = Object.entries(prodRev).sort((a, b) => b[1] - a[1]).slice(0, 5)
   const maxProdRev = topProducts[0]?.[1] || 1
 
-  // Order status breakdown (all orders for accurate counts)
+  // Order status breakdown
   const statusMap: Record<string, number> = {}
-  ;(currentOrders || []).forEach((o) => {
+  currentOrders.forEach((o) => {
     const s = o.status || 'pending'
     statusMap[s] = (statusMap[s] || 0) + 1
   })
 
-  // Monthly revenue — cancelled excluded
+  // Monthly revenue (last 6 months, cancelled excluded)
   const monthlyData: { label: string; revenue: number; products: number; shipping: number }[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date()
     d.setMonth(d.getMonth() - i)
     const key = d.toISOString().slice(0, 7)
     const label = d.toLocaleDateString('en', { month: 'short' })
-    const monthOrders = (allOrders || []).filter(
+    const monthOrders = allOrders.filter(
       (o) => o.created_at?.slice(0, 7) === key && o.status !== 'cancelled'
     )
     const monthProducts = monthOrders.reduce((s, o) => s + n(o.total), 0)
@@ -257,8 +215,6 @@ export default async function FinancesPage({
 
       {/* Monthly Revenue Chart + Status Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-        {/* Monthly bars */}
         <div className="lg:col-span-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -350,8 +306,6 @@ export default async function FinancesPage({
 
       {/* Top Products + Revenue Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* Top products */}
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
             Top Products <span className="font-normal text-[var(--color-text-muted)]">by revenue</span>
@@ -376,7 +330,6 @@ export default async function FinancesPage({
           )}
         </div>
 
-        {/* Revenue summary */}
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Revenue Summary</h2>
           <div className="flex flex-col gap-3">
@@ -423,7 +376,7 @@ export default async function FinancesPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
-                {[...(currentOrders || [])]
+                {[...currentOrders]
                   .sort((a, b) => n(b.total) - n(a.total))
                   .slice(0, 8)
                   .map((o) => {

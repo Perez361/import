@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   ShoppingCart, User, LogOut, Plus, X, Trash2, Minus,
-  CheckCircle2, MapPin, Phone, Package, Search, ChevronDown,
+  CheckCircle2, MapPin, Phone, Package, Search,
   Sparkles, ShoppingBag, Star,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -75,11 +75,7 @@ function ProductCard({ product, slug, index }: { product: Product; slug: string;
             <Package className="h-16 w-16 text-slate-300" />
           </div>
         )}
-
-        {/* Overlay gradient */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-        {/* Badge */}
         <div className="absolute top-3 left-3">
           <span className="inline-flex items-center gap-1 bg-white/90 backdrop-blur-sm text-[10px] font-bold text-amber-700 px-2.5 py-1 rounded-full border border-amber-200/50 shadow-sm">
             <Sparkles className="h-2.5 w-2.5" /> Pre-order
@@ -193,7 +189,7 @@ function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
             <div>
               <h2 className="text-2xl font-black text-slate-900 mb-2">Order Confirmed!</h2>
               <p className="text-sm text-slate-500 leading-relaxed">
-                Your order has been placed. The importer will process it and notify you once your items arrive. You'll pay the shipping fee at delivery.
+                Your order has been placed. The importer will process it and notify you once your items arrive.
               </p>
             </div>
             <Link
@@ -279,21 +275,16 @@ function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
             {/* Footer */}
             {cartCount > 0 && (
               <div className="px-6 pb-6 pt-4 border-t border-slate-100 space-y-4">
-                {/* Subtotal */}
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-500">Subtotal</span>
                   <span className="text-xl font-black text-slate-900 tabular-nums">GH₵{fmt(total)}</span>
                 </div>
-
-                {/* Notice */}
                 <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3">
                   <Sparkles className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-700 leading-relaxed">
-                    <span className="font-bold">No shipping fee now.</span> You'll pay shipping once your items arrive from the supplier.
+                    <span className="font-bold">No shipping fee now.</span> You&apos;ll pay shipping once your items arrive.
                   </p>
                 </div>
-
-                {/* CTA */}
                 <button
                   onClick={handleCheckout}
                   disabled={placing}
@@ -317,12 +308,14 @@ function CartDrawer({ slug, onClose }: { slug: string; onClose: () => void }) {
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 export default function StoreContent({ slug, importer, products }: StoreContentProps) {
-  const { cartCount } = useCart()
+  const { cartCount, cartItems } = useCart()
   const store = useStore()
   const [showCart, setShowCart] = useState(false)
   const [search, setSearch] = useState('')
   const [pendingOrderCount, setPendingOrderCount] = useState(0)
-  const [searchFocused, setSearchFocused] = useState(false)
+
+  // Derive cart total from cartItems for the floating button
+  const cartTotal = cartItems.reduce((s, i) => s + i.quantity * i.products.price, 0)
 
   useEffect(() => {
     if (!store.customerId) { setPendingOrderCount(0); return }
@@ -378,23 +371,11 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
           to { opacity: 1; transform: scale(1) }
         }
 
-        .product-card {
-          animation: scaleIn 0.4s ease both;
-        }
-
-        .hero-text {
-          animation: slideUp 0.6s ease both;
-        }
-        .hero-sub {
-          animation: slideUp 0.6s 0.1s ease both;
-        }
-        .hero-stats {
-          animation: slideUp 0.6s 0.2s ease both;
-        }
-
-        .search-bar {
-          animation: slideUp 0.5s 0.15s ease both;
-        }
+        .product-card { animation: scaleIn 0.4s ease both; }
+        .hero-text { animation: slideUp 0.6s ease both; }
+        .hero-sub { animation: slideUp 0.6s 0.1s ease both; }
+        .hero-stats { animation: slideUp 0.6s 0.2s ease both; }
+        .search-bar { animation: slideUp 0.5s 0.15s ease both; }
       `}</style>
 
       <div className="store-page min-h-screen bg-[#F8F6F1]">
@@ -403,7 +384,6 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
         <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-100/80">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 gap-4">
 
-            {/* Logo / Business */}
             <Link href={`/store/${slug}`} className="flex items-center gap-3 shrink-0">
               <div className="h-8 w-8 rounded-xl bg-slate-900 flex items-center justify-center">
                 <ShoppingBag className="h-4 w-4 text-amber-400" />
@@ -489,34 +469,26 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
 
         {/* ── Hero ── */}
         <section className="relative overflow-hidden bg-slate-900">
-          {/* Background texture */}
           <div className="absolute inset-0 opacity-5" style={{
             backgroundImage: `radial-gradient(circle at 1px 1px, white 1px, transparent 0)`,
-            backgroundSize: '32px 32px'
+            backgroundSize: '32px 32px',
           }} />
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
-
-          {/* Decorative gold orb */}
           <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-amber-400 opacity-10 blur-3xl" />
           <div className="absolute -bottom-16 -left-16 h-64 w-64 rounded-full bg-amber-500 opacity-5 blur-3xl" />
 
           <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20">
             <div className="max-w-2xl">
-              {/* Store tag */}
               <div className="hero-text inline-flex items-center gap-2 bg-amber-400/10 border border-amber-400/20 rounded-full px-4 py-1.5 mb-6">
                 <Star className="h-3.5 w-3.5 text-amber-400" fill="currentColor" />
                 <span className="text-xs font-bold text-amber-400 tracking-widest uppercase">Official Store</span>
               </div>
-
               <h1 className="store-display hero-text text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight mb-4">
                 {importer.business_name}
               </h1>
-
               <p className="hero-sub text-slate-400 text-sm sm:text-base leading-relaxed mb-8 max-w-md">
                 Pre-order directly from our curated collection. Pay product price now, shipping fee when your items arrive.
               </p>
-
-              {/* Store info pills */}
               <div className="hero-stats flex flex-wrap gap-3">
                 {importer.location && (
                   <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2">
@@ -542,17 +514,11 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
         {/* ── Products Section ── */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
 
-          {/* Section header + mobile search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div>
-              <h2 className="store-display text-2xl sm:text-3xl font-black text-slate-900">
-                All Products
-              </h2>
-              <p className="text-sm text-slate-400 mt-1">
-                {filtered.length} of {products.length} available
-              </p>
+              <h2 className="store-display text-2xl sm:text-3xl font-black text-slate-900">All Products</h2>
+              <p className="text-sm text-slate-400 mt-1">{filtered.length} of {products.length} available</p>
             </div>
-
             {/* Search — mobile */}
             <div className="search-bar relative sm:hidden">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -566,7 +532,6 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
             </div>
           </div>
 
-          {/* Product Grid */}
           {products.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-32 gap-4">
               <div className="h-24 w-24 rounded-3xl bg-white flex items-center justify-center shadow-sm">
@@ -581,7 +546,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
             <div className="flex flex-col items-center justify-center py-24 gap-4">
               <Search className="h-10 w-10 text-slate-300" />
               <div className="text-center">
-                <h3 className="font-bold text-slate-900 mb-1">No results for "{search}"</h3>
+                <h3 className="font-bold text-slate-900 mb-1">No results for &ldquo;{search}&rdquo;</h3>
                 <button onClick={() => setSearch('')} className="text-sm text-amber-600 font-semibold">Clear search</button>
               </div>
             </div>
@@ -615,7 +580,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
           </div>
         </footer>
 
-        {/* ── Floating cart button (mobile) ── */}
+        {/* ── Floating cart button (mobile) — now shows real total ── */}
         {cartCount > 0 && (
           <div className="fixed bottom-6 right-4 z-30 sm:hidden">
             <button
@@ -624,7 +589,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
             >
               <ShoppingCart className="h-4 w-4" />
               <span className="text-sm font-black">{cartCount} item{cartCount !== 1 ? 's' : ''}</span>
-              <span className="text-sm font-bold text-amber-400">· GH₵{fmt(0)}</span>
+              <span className="text-sm font-bold text-amber-400">· GH₵{fmt(cartTotal)}</span>
             </button>
           </div>
         )}

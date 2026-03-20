@@ -26,8 +26,21 @@
 
   /* UI */
   --color-border: #E2E8F0;
+
+  /* Danger */
   --color-danger: #EF4444;
+  --color-danger-light: #FEF2F2;
+
+  /* Success */
   --color-success: #10B981;
+  --color-success-light: #ECFDF5;
+
+  /* Warning */
+  --color-warning: #F59E0B;
+  --color-warning-light: #FFFBEB;
+
+  /* Muted */
+  --color-muted: #E2E8F0;
 }
 
 @media (prefers-color-scheme: dark) {

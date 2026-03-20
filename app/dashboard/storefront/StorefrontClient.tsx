@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { Store, Eye, Link, Share2 } from 'lucide-react'
 
-// Types
 interface Importer {
   business_name: string
   username: string
@@ -85,13 +84,12 @@ export default function StorefrontClient({ importer, products }: { importer: Imp
               <span className="text-sm text-[var(--color-text-muted)]">Products</span>
               <span className="font-semibold text-[var(--color-text-primary)]">{totalProducts}</span>
             </div>
+            {/* Removed hardcoded visitor/order stats — these need real analytics */}
             <div className="flex justify-between py-2">
-              <span className="text-sm text-[var(--color-text-muted)]">Visitors</span>
-              <span className="font-semibold text-[var(--color-text-primary)]">156</span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="text-sm text-[var(--color-text-muted)]">Orders</span>
-              <span className="font-semibold text-[var(--color-success)]">7</span>
+              <span className="text-sm text-[var(--color-text-muted)]">View Analytics</span>
+              <a href="/dashboard/analytics" className="text-sm font-semibold text-[var(--color-brand)] hover:underline">
+                Open →
+              </a>
             </div>
           </div>
         </div>
@@ -102,12 +100,14 @@ export default function StorefrontClient({ importer, products }: { importer: Imp
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {products.map((product) => (
             <div key={product.id} className="border border-[var(--color-border)] rounded-xl p-6 hover:shadow-lg transition-all group">
-              <div className="w-full h-32 rounded-lg mb-4 group-hover:scale-105 transition-transform overflow-hidden bg-[var(--color-muted)]" 
-                   style={{ 
-                     backgroundImage: product.image_url ? `url(${product.image_url})` : 'none',
-                     backgroundSize: 'cover', 
-                     backgroundPosition: 'center' 
-                   }}>
+              <div
+                className="w-full h-32 rounded-lg mb-4 group-hover:scale-105 transition-transform overflow-hidden bg-[var(--color-muted)]"
+                style={{
+                  backgroundImage: product.image_url ? `url(${product.image_url})` : 'none',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }}
+              >
                 {!product.image_url && (
                   <div className="w-full h-full flex items-center justify-center text-[var(--color-text-muted)]">
                     <Store className="h-8 w-8" />
@@ -119,7 +119,7 @@ export default function StorefrontClient({ importer, products }: { importer: Imp
               <div className="flex justify-between items-center">
                 <span className="text-lg font-bold text-[var(--color-success)]">GH₵{product.price?.toLocaleString()}</span>
                 <span className="text-xs bg-[var(--color-success-light)] text-[var(--color-success)] px-2 py-1 rounded-full font-medium">
-                  {product.shipping_tag}
+                  {product.shipping_tag || 'Pre-order'}
                 </span>
               </div>
             </div>
@@ -136,4 +136,3 @@ export default function StorefrontClient({ importer, products }: { importer: Imp
     </div>
   )
 }
-
