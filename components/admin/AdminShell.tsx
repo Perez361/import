@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Shield, LayoutDashboard, Users, CreditCard,
-  Settings, LogOut, Menu, X, ChevronRight,
+  Settings, LogOut, Menu, ChevronRight,
 } from 'lucide-react'
 import { adminLogoutAction } from '@/lib/admin/actions'
 import type { AdminUser } from '@/lib/admin/session'
@@ -32,7 +32,7 @@ export default function AdminShell({
 
   const handleLogout = async () => {
     await adminLogoutAction()
-    router.push('/admin/login')
+    router.push('/admin-login')
     router.refresh()
   }
 
@@ -107,7 +107,10 @@ export default function AdminShell({
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <>
-          <div className="fixed inset-0 z-50 bg-black/70 lg:hidden" onClick={() => setSidebarOpen(false)} />
+          <div
+            className="fixed inset-0 z-50 bg-black/70 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
           <div className="fixed inset-y-0 left-0 z-50 w-64 bg-[#0D1220] border-r border-white/8 flex flex-col lg:hidden">
             <SidebarContent />
           </div>

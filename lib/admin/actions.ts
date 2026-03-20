@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, requireSuperAdmin } from '@/lib/admin/session'
 
@@ -35,7 +36,6 @@ export async function updateImporterSubscriptionAction(
 
   if (error) return { error: error.message }
 
-  // Log activity
   await supabase.from('admin_activity_log').insert({
     admin_id: admin.id,
     action: 'update_subscription',
@@ -95,11 +95,15 @@ export async function unsuspendImporterAction(importerId: string) {
   return { success: true }
 }
 
-export async function createAdminAction(email: string, fullName: string, password: string, role: 'admin' | 'super_admin') {
+export async function createAdminAction(
+  email: string,
+  fullName: string,
+  password: string,
+  role: 'admin' | 'super_admin'
+) {
   await requireSuperAdmin()
   const supabase = await createClient()
 
-  // Create auth user
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email,
     password,
@@ -109,7 +113,6 @@ export async function createAdminAction(email: string, fullName: string, passwor
 
   if (authError || !authData.user) return { error: authError?.message || 'Failed to create user' }
 
-  // Insert into admins table
   const { error } = await supabase.from('admins').insert({
     user_id: authData.user.id,
     email,
@@ -129,7 +132,6 @@ export async function adminLoginAction(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error || !data.user) return { error: error?.message || 'Login failed' }
 
-  // Verify this user is actually an admin
   const { data: adminRecord } = await supabase
     .from('admins')
     .select('id')

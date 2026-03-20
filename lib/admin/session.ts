@@ -27,13 +27,13 @@ export async function getAdminUser(): Promise<AdminUser | null> {
 
 export async function requireAdmin() {
   const admin = await getAdminUser()
-  if (!admin) redirect('/admin/login')
+  if (!admin) redirect('/admin-login')
   return admin
 }
 
 export async function requireSuperAdmin() {
   const admin = await getAdminUser()
-  if (!admin) redirect('/admin/login')
+  if (!admin) redirect('/admin-login')
   if (admin.role !== 'super_admin') redirect('/admin')
   return admin
 }
