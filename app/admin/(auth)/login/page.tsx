@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Shield, Loader2, Eye, EyeOff } from 'lucide-react'
 import { adminLoginAction } from '@/lib/admin/actions'
 import { toast } from 'sonner'
+import { Toaster } from 'sonner'
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -25,8 +26,8 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen bg-[#0A0F18] flex items-center justify-center px-4">
+      <Toaster position="top-right" richColors />
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="flex flex-col items-center gap-3 mb-8">
           <div className="h-14 w-14 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/30">
             <Shield className="h-7 w-7 text-white" />
@@ -37,7 +38,6 @@ export default function AdminLoginPage() {
           </div>
         </div>
 
-        {/* Card */}
         <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -80,7 +80,9 @@ export default function AdminLoginPage() {
               disabled={loading}
               className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
             >
-              {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</> : 'Sign In'}
+              {loading
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>
+                : 'Sign In'}
             </button>
           </form>
         </div>

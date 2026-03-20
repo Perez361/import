@@ -19,10 +19,7 @@ export default async function AdminSettingsPage() {
         <h1 className="text-2xl font-bold text-white">Settings</h1>
         <p className="text-sm text-slate-500 mt-0.5">Manage admin accounts and platform settings</p>
       </div>
-      <AdminSettingsClient
-        currentAdmin={admin}
-        admins={admins || []}
-      />
+      <AdminSettingsClient currentAdmin={admin} admins={admins || []} />
     </div>
   )
 }

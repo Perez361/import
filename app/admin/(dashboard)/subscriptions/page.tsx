@@ -1,11 +1,9 @@
-import { requireAdmin } from '@/lib/admin/session'
 import { createClient } from '@/lib/supabase/server'
 import { Crown, Zap, Gift } from 'lucide-react'
 
 export const metadata = { title: 'Subscriptions – Admin' }
 
 export default async function AdminSubscriptionsPage() {
-  await requireAdmin()
   const supabase = await createClient()
 
   const { data: subs } = await supabase
@@ -18,8 +16,8 @@ export default async function AdminSubscriptionsPage() {
     .order('created_at', { ascending: false })
 
   const fmt = (n: number) => n.toLocaleString('en-GH', { maximumFractionDigits: 0 })
-
   const allSubs = subs || []
+
   const mrr = allSubs
     .filter(s => s.status === 'active')
     .reduce((sum: number, s: any) => sum + (Number(s.subscription_plans?.price_monthly) || 0), 0)
@@ -81,9 +79,7 @@ export default async function AdminSubscriptionsPage() {
             <thead>
               <tr className="border-b border-white/8">
                 {['Importer', 'Plan', 'Status', 'Period End', 'Notes'].map(h => (
-                  <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    {h}
-                  </th>
+                  <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -103,9 +99,7 @@ export default async function AdminSubscriptionsPage() {
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.border} ${cfg.bg} ${cfg.color}`}>
                         <Icon className="h-3 w-3" />
                         {plan?.display_name || 'Free'}
-                        {plan?.price_monthly > 0 && (
-                          <span className="opacity-60">· GH₵{plan.price_monthly}/mo</span>
-                        )}
+                        {plan?.price_monthly > 0 && <span className="opacity-60">· GH₵{plan.price_monthly}/mo</span>}
                       </span>
                     </td>
                     <td className="px-5 py-4">

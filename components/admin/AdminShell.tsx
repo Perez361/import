@@ -32,7 +32,7 @@ export default function AdminShell({
 
   const handleLogout = async () => {
     await adminLogoutAction()
-    router.push('/admin-login')
+    router.push('/admin/login')
     router.refresh()
   }
 
@@ -41,7 +41,6 @@ export default function AdminShell({
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-white/8">
         <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
           <Shield className="h-5 w-5 text-white" />
@@ -52,7 +51,6 @@ export default function AdminShell({
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon, exact }) => {
           const active = isActive(href, exact)
@@ -74,7 +72,6 @@ export default function AdminShell({
         })}
       </nav>
 
-      {/* Admin info + logout */}
       <div className="p-3 border-t border-white/8">
         <div className="flex items-center gap-3 px-3 py-2.5 mb-1">
           <div className="h-8 w-8 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-xs font-bold text-blue-400 shrink-0">
@@ -98,33 +95,22 @@ export default function AdminShell({
 
   return (
     <div className="h-screen bg-[#0A0F18] flex overflow-hidden">
-
-      {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-60 bg-[#0D1220] border-r border-white/8 shrink-0">
         <SidebarContent />
       </aside>
 
-      {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <>
-          <div
-            className="fixed inset-0 z-50 bg-black/70 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
+          <div className="fixed inset-0 z-50 bg-black/70 lg:hidden" onClick={() => setSidebarOpen(false)} />
           <div className="fixed inset-y-0 left-0 z-50 w-64 bg-[#0D1220] border-r border-white/8 flex flex-col lg:hidden">
             <SidebarContent />
           </div>
         </>
       )}
 
-      {/* Main content */}
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-        {/* Mobile header */}
         <header className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-white/8 bg-[#0D1220] shrink-0">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-lg text-slate-400 hover:bg-white/8 transition-colors"
-          >
+          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg text-slate-400 hover:bg-white/8 transition-colors">
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2">
@@ -132,8 +118,6 @@ export default function AdminShell({
             <span className="text-sm font-bold text-white">Admin</span>
           </div>
         </header>
-
-        {/* Scrollable page content */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           {children}
         </main>

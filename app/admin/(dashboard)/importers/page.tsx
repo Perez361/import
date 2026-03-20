@@ -1,4 +1,3 @@
-import { requireAdmin } from '@/lib/admin/session'
 import { getAdminImportersList } from '@/lib/admin/data'
 import Link from 'next/link'
 import { Search, Crown, Zap, Gift, ExternalLink, ChevronRight } from 'lucide-react'
@@ -24,7 +23,6 @@ export default async function AdminImportersPage({
 }: {
   searchParams: Promise<{ q?: string; plan?: string; page?: string }>
 }) {
-  await requireAdmin()
   const params = await searchParams
   const search = params.q || ''
   const planFilter = params.plan || ''
@@ -34,11 +32,9 @@ export default async function AdminImportersPage({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Importers</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage all registered importers</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-white">Importers</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Manage all registered importers</p>
       </div>
 
       {/* Filters */}
@@ -79,10 +75,7 @@ export default async function AdminImportersPage({
               <thead>
                 <tr className="border-b border-white/8">
                   {['Importer', 'Store', 'Plan', 'Status', 'Joined', ''].map((h, i) => (
-                    <th
-                      key={h || i}
-                      className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500"
-                    >
+                    <th key={h || i} className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                       {h}
                     </th>
                   ))}
@@ -95,7 +88,6 @@ export default async function AdminImportersPage({
                   const status = sub?.status || 'active'
                   const plan = PLAN_BADGE[planName] || PLAN_BADGE.free
                   const PlanIcon = plan.icon
-
                   return (
                     <tr key={imp.id} className="hover:bg-white/4 transition-colors">
                       <td className="px-5 py-4">
@@ -104,32 +96,22 @@ export default async function AdminImportersPage({
                             {(imp.business_name || '?').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-semibold text-white truncate max-w-[160px]">
-                              {imp.business_name || 'Unnamed'}
-                            </p>
+                            <p className="font-semibold text-white truncate max-w-[160px]">{imp.business_name || 'Unnamed'}</p>
                             <p className="text-xs text-slate-500 truncate max-w-[160px]">{imp.email}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-5 py-4">
                         {imp.store_slug ? (
-                          <a
-                            href={`/store/${imp.store_slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
-                          >
-                            /{imp.store_slug}
-                            <ExternalLink className="h-3 w-3" />
+                          <a href={`/store/${imp.store_slug}`} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                            /{imp.store_slug}<ExternalLink className="h-3 w-3" />
                           </a>
-                        ) : (
-                          <span className="text-xs text-slate-600">—</span>
-                        )}
+                        ) : <span className="text-xs text-slate-600">—</span>}
                       </td>
                       <td className="px-5 py-4">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${plan.classes}`}>
-                          <PlanIcon className="h-3 w-3" />
-                          {plan.label}
+                          <PlanIcon className="h-3 w-3" />{plan.label}
                         </span>
                       </td>
                       <td className="px-5 py-4">
@@ -138,15 +120,10 @@ export default async function AdminImportersPage({
                         </span>
                       </td>
                       <td className="px-5 py-4 text-xs text-slate-500 whitespace-nowrap">
-                        {new Date(imp.created_at).toLocaleDateString('en', {
-                          month: 'short', day: 'numeric', year: 'numeric',
-                        })}
+                        {new Date(imp.created_at).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </td>
                       <td className="px-5 py-4">
-                        <Link
-                          href={`/admin/importers/${imp.id}`}
-                          className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors"
-                        >
+                        <Link href={`/admin/importers/${imp.id}`} className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors">
                           Manage <ChevronRight className="h-3.5 w-3.5" />
                         </Link>
                       </td>
