@@ -11,9 +11,9 @@ import { Loader2, Mail, Phone, MessageSquare } from 'lucide-react'
 import FormInput from './FormInput'
 import GoogleButton from './GoogleButton'
 import { createClient } from '@/lib/supabase/client'
-import { sendPhoneOtpAction, verifyPhoneOtpAction } from '@/lib/actions'
+import { sendPhoneOtpAction } from '@/lib/actions'
 
-// ── Email/password schema (unchanged) ────────────────────────────────────────
+// ── Email/password schema ─────────────────────────────────────────────────────
 
 const registerSchema = z
   .object({
@@ -91,7 +91,7 @@ export default function RegisterForm() {
   const [otp, setOtp] = useState('')
   const [otpLoading, setOtpLoading] = useState(false)
 
-  // ── Email / password register (unchanged) ─────────────────────────────────
+  // ── Email / password register ─────────────────────────────────────────────
 
   const onEmailSubmit = async (data: RegisterFormData) => {
     const supabase = createClient()
@@ -126,7 +126,11 @@ export default function RegisterForm() {
     toast.success('Code sent! Check your SMS.')
   }
 
-  // ── Phone register: Step 2 — verify OTP + create importer row ────────────
+  // ── Phone register: Step 2 — verify OTP directly on client ───────────────
+  // We verify on the CLIENT (not via server action) so the session cookie is
+  // immediately available in the browser. The old approach used a server action
+  // which set the cookie server-side but the browser hadn't received it yet
+  // by the time getUser() was called — causing "session not established".
 
   async function handleVerifyAndRegister(e: React.FormEvent) {
     e.preventDefault()
@@ -136,28 +140,21 @@ export default function RegisterForm() {
     setOtpLoading(true)
     const normPhone = normalisePhone(pendingPhoneData.phone)
 
-    // verifyPhoneOtpAction sets the server-side session cookie
-    const verifyResult = await verifyPhoneOtpAction(normPhone, otp)
-
-    if (verifyResult.error) {
-      // If verifyPhoneOtpAction returned "no importer", the user is new — create the row
-      // The verifyOtp call still succeeds and sets a session; we just need to insert the importer
-      if (!verifyResult.error.includes('No importer account')) {
-        setOtpLoading(false)
-        toast.error(verifyResult.error)
-        return
-      }
-    }
-
-    // At this point the session is established. Use client supabase to get user + insert importer row.
+    // Verify OTP directly on the client supabase instance
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: normPhone,
+      token: otp,
+      type: 'sms',
+    })
 
-    if (!user) {
+    if (error || !data.user) {
       setOtpLoading(false)
-      toast.error('Session not established. Please try again.')
+      toast.error(error?.message || 'Invalid code. Please try again.')
       return
     }
+
+    const user = data.user
 
     // Check if importer row already exists (returning user via phone)
     const { data: existing } = await supabase
@@ -252,7 +249,7 @@ export default function RegisterForm() {
         </button>
       </div>
 
-      {/* ── Email / Password tab (unchanged) ── */}
+      {/* ── Email / Password tab ── */}
       {tab === 'email' && (
         <form onSubmit={handleSubmit(onEmailSubmit)} className="flex flex-col gap-5">
           <FormInput label="Business Name" placeholder="Acme Imports Ltd." error={errors.businessName?.message} {...register('businessName')} />
