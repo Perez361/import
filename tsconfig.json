@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@importflow/shared": ["../packages/shared/index.ts"]
     }
   },
   "include": [

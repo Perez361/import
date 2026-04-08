@@ -1,9 +1,10 @@
-// Utility functions
-export function slugify(text: string): string {
-  return text.toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
+// Re-export all shared utilities from the monorepo shared package.
+// Add any web-only utilities below if needed.
+export {
+  slugify,
+  formatCurrency,
+  getTimeAgo,
+  getOrderId,
+  parseNumber,
+  formatDate,
+} from '@importflow/shared'
