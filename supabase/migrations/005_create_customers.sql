@@ -1,33 +1,37 @@
--- Create customers table
-CREATE TABLE customers (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  store_id UUID REFERENCES importers(id) ON DELETE CASCADE NOT NULL,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
-  full_name TEXT NOT NULL,
-  username TEXT UNIQUE NOT NULL,
-  contact TEXT NOT NULL,
-  email TEXT NOT NULL,
-  location TEXT NOT NULL,
-  shipping_address TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+-- ============================================================
+-- Migration 005: Create customers table
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.customers (
+  id               uuid        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  store_id         uuid        NOT NULL REFERENCES public.importers(id) ON DELETE CASCADE,
+  user_id          uuid        UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name        text,
+  username         text,
+  contact          text,
+  email            text,
+  location         text,
+  shipping_address text,
+  avatar_url       text,
+  created_at       timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at       timestamptz NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
 -- Enable RLS
-ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public customers profile for authenticated users" ON customers FOR SELECT 
-  USING (true);
+-- Customers manage own profile
+CREATE POLICY "Customers can view own profile"   ON public.customers FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Customers can insert own profile" ON public.customers FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Customers can update own profile" ON public.customers FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Customers can delete own profile" ON public.customers FOR DELETE USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can insert their own customer profile" ON customers FOR INSERT 
-  WITH CHECK (auth.uid() = user_id);
+-- Store owners can view customers in their store
+CREATE POLICY "Store owners can view their customers" ON public.customers FOR SELECT
+  USING (EXISTS (
+    SELECT 1 FROM public.importers WHERE id = store_id AND auth.uid() = public.importers.id
+  ));
 
-CREATE POLICY "Users can update own customer profile" ON customers FOR UPDATE 
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own customer profile" ON customers FOR DELETE 
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Store owners can view their customers" ON customers FOR SELECT
-  USING (EXISTS (SELECT 1 FROM importers WHERE id = store_id AND auth.uid() = importers.id));
-
+-- Indexes
+CREATE INDEX IF NOT EXISTS customers_store_id_idx ON public.customers (store_id);
+CREATE INDEX IF NOT EXISTS customers_user_id_idx  ON public.customers (user_id);

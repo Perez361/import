@@ -1,31 +1,27 @@
--- Migration: Create product-images storage bucket + policies
--- Run: npx supabase db push
+-- ============================================================
+-- Migration 003: Create product-images storage bucket
+-- ============================================================
 
--- Create bucket (idempotent)
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('product-images', 'product-images', true) 
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('product-images', 'product-images', true)
 ON CONFLICT (id) DO NOTHING;
 
--- RLS Policy: Public read access
+-- Public read
 CREATE POLICY "Public product images read" ON storage.objects
-FOR SELECT USING (bucket_id = 'product-images');
+  FOR SELECT USING (bucket_id = 'product-images');
 
--- Dashboard upload policy (logged-in importers)
-CREATE POLICY "Importer upload products" ON storage.objects
-FOR INSERT WITH CHECK (
-  bucket_id = 'product-images' 
-  AND auth.role() = 'authenticated'
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
+-- Importers upload to their own folder (folder name = their user id)
+CREATE POLICY "Importers can upload product images" ON storage.objects
+  FOR INSERT WITH CHECK (
+    bucket_id = 'product-images'
+    AND auth.role() = 'authenticated'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
 
--- Optional: Importer update/delete own images
-CREATE POLICY "Importer manage own product images" ON storage.objects
-FOR ALL USING (
-  bucket_id = 'product-images' 
-  AND auth.role() = 'authenticated'
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
-
--- Verify
-SELECT * FROM storage.buckets WHERE id = 'product-images';
-
+-- Importers manage (update/delete) their own images
+CREATE POLICY "Importers can manage own product images" ON storage.objects
+  FOR ALL USING (
+    bucket_id = 'product-images'
+    AND auth.role() = 'authenticated'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
