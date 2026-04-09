@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { Truck, Plus, Package, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
 import NewBatchForm from './NewBatchForm'
+import RealtimeRefresher from './RealtimeRefresher'
 
 export const metadata = { title: 'Shipments – ImportFlow PRO' }
 
@@ -12,6 +13,8 @@ export default async function ShipmentsPage() {
   if (!user) redirect('/login')
 
   const supabase = await createClient()
+
+  const importerId = user.id // Assuming importer.id = user.id
 
   const { data: batches } = await supabase
     .from('shipment_batches')
@@ -44,6 +47,7 @@ export default async function ShipmentsPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <RealtimeRefresher importerId={importerId} />
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

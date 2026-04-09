@@ -154,6 +154,7 @@ export default async function OrdersPage({
             orders={orderList}
             importerPhone={importer.phone || ''}
             storeSlug={importer.store_slug || ''}
+            storeId={importer.id}
           />
         )}
       </div>

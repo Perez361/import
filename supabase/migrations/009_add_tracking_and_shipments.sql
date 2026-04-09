@@ -53,3 +53,7 @@ CREATE POLICY "Importers manage own shipment items" ON public.shipment_items FOR
 
 CREATE INDEX IF NOT EXISTS shipment_items_batch_id_idx   ON public.shipment_items (batch_id);
 CREATE INDEX IF NOT EXISTS shipment_items_product_id_idx ON public.shipment_items (product_id);
+
+-- Unique constraint to prevent duplicate tracking numbers within the same batch
+ALTER TABLE public.shipment_items ADD CONSTRAINT shipment_items_batch_tracking_unique
+  UNIQUE (batch_id, tracking_number);

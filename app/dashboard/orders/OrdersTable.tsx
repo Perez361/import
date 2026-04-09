@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronRight, Truck,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
 import {
   markProductPaidAction,
   markShippingPaidAction,
@@ -42,6 +43,7 @@ interface Props {
   orders: Order[]
   importerPhone: string
   storeSlug: string
+  storeId: string
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -448,8 +450,30 @@ function ProductGroupCard({ group }: { group: ProductGroup }) {
 
 // ── Main export — groups orders by product ────────────────────────────────────
 
-export default function OrdersTable({ orders }: Props) {
+export default function OrdersTable({ orders, storeId }: Props & { storeId: string }) {
   const [groups, setGroups] = useState<ProductGroup[]>([])
+
+  // Real-time subscription for order updates
+  useEffect(() => {
+    if (!storeId) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`orders-${storeId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        filter: `store_id=eq.${storeId}`,
+      }, () => {
+        // Refresh the page to show updated orders
+        window.location.reload()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [storeId])
 
   useEffect(() => {
     const map = new Map<string, ProductGroup>()

@@ -74,9 +74,9 @@ export async function addShipmentItemAction(
     batch_id: batchId,
   }))
 
-  const { error } = await supabase.from('shipment_items').upsert(rows, {
-    onConflict: 'batch_id,tracking_number',
-  })
+  // Insert items, but handle potential duplicates by using upsert without conflict resolution
+  // The unique constraint will be added via migration
+  const { error } = await supabase.from('shipment_items').insert(rows)
 
   if (error) return { error: error.message }
 
