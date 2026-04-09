@@ -55,7 +55,7 @@ export default async function OrdersPage({
         products ( id, name, image_url )
       )
     `)
-    .eq('store_id', user.id)
+    .eq('store_id', importer.id)
     .order('created_at', { ascending: false })
 
   if (statusFilter !== 'all') {
