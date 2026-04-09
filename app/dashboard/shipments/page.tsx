@@ -129,8 +129,6 @@ export default function ShipmentsPage() {
             Track overseas freight batches and reconcile deliveries
           </p>
         </div>
-        <NewBatchForm />
-      </div>
       </div>
 
       {/* New batch form */}

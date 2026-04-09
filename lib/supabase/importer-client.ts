@@ -1,5 +1,4 @@
 import { createBrowserClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 
 // Dedicated client for importer/staff sessions.
 // Uses its own localStorage key so it never collides with customer sessions.
