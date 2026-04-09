@@ -15,7 +15,7 @@ interface Product {
   description: string
   price: number
   image_url: string
-  shipping_tag: string
+  shipping_tag?: string | null
 }
 
 function slugify(text: string): string {
@@ -119,7 +119,7 @@ export default function StorefrontClient({ importer, products }: { importer: Imp
               <div className="flex justify-between items-center">
                 <span className="text-lg font-bold text-[var(--color-success)]">GH₵{product.price?.toLocaleString()}</span>
                 <span className="text-xs bg-[var(--color-success-light)] text-[var(--color-success)] px-2 py-1 rounded-full font-medium">
-                  {product.shipping_tag || 'Pre-order'}
+                  {product.shipping_tag || 'without shipping fee'}
                 </span>
               </div>
             </div>

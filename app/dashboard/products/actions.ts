@@ -85,6 +85,7 @@ export async function createProductAction(formData: FormData) {
     price: parseFloat(price),
     description,
     image_url: imageUrl,
+    shipping_tag: 'without shipping fee',
   })
 
   if (insertError) {

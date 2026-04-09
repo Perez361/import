@@ -13,6 +13,7 @@ export async function updateProductAction(productId: string, formData: FormData)
   const name = formData.get('name') as string
   const price = formData.get('price') as string
   const description = (formData.get('description') as string) || ''
+  const shipping_tag = (formData.get('shipping_tag') as string) || 'without shipping fee'
   const tracking_number = ((formData.get('tracking_number') as string) || '').trim().toUpperCase() || null
   const supplier_name = (formData.get('supplier_name') as string) || null
   const supplier_url = (formData.get('supplier_url') as string) || null
@@ -70,6 +71,7 @@ export async function updateProductAction(productId: string, formData: FormData)
       price: parseFloat(price),
       description,
       image_url: imageUrl,
+      shipping_tag,
       tracking_number,
       supplier_name,
       supplier_url,

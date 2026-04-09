@@ -17,6 +17,7 @@ interface Product {
   description: string
   image_url: string
   slug: string
+  shipping_tag?: string | null
   tracking_number?: string | null
   supplier_url?: string | null
   supplier_name?: string | null
@@ -39,6 +40,7 @@ export default function EditProductForm({ product, userId }: Props) {
     name: product.name || '',
     price: product.price?.toString() || '',
     description: product.description || '',
+    shipping_tag: product.shipping_tag || '',
     tracking_number: product.tracking_number || '',
     supplier_name: product.supplier_name || '',
     supplier_url: product.supplier_url || '',
@@ -75,6 +77,7 @@ export default function EditProductForm({ product, userId }: Props) {
       fd.append('name', formData.name)
       fd.append('price', formData.price)
       fd.append('description', formData.description)
+      fd.append('shipping_tag', formData.shipping_tag)
       fd.append('tracking_number', formData.tracking_number)
       fd.append('supplier_name', formData.supplier_name)
       fd.append('supplier_url', formData.supplier_url)
@@ -194,6 +197,16 @@ export default function EditProductForm({ product, userId }: Props) {
               <Truck className="h-3.5 w-3.5" /> Supplier & Tracking
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold mb-1.5 text-[var(--color-text-primary)] flex items-center gap-1.5">
+                  <Truck className="h-3.5 w-3.5 text-[var(--color-brand)]" /> Shipping Tag
+                </label>
+                <input type="text" value={formData.shipping_tag}
+                  onChange={(e) => setFormData({ ...formData, shipping_tag: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent text-sm"
+                  placeholder="e.g. without shipping fee" />
+                <p className="text-xs text-[var(--color-text-muted)] mt-1">Tag shown under the price (e.g., "without shipping fee")</p>
+              </div>
               <div>
                 <label className="block text-sm font-semibold mb-1.5 text-[var(--color-text-primary)] flex items-center gap-1.5">
                   <Hash className="h-3.5 w-3.5 text-[var(--color-brand)]" /> Tracking Number

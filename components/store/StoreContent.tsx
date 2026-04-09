@@ -20,6 +20,7 @@ interface Product {
   price: number
   image_url?: string
   description?: string
+  shipping_tag?: string | null
 }
 
 interface StoreContentProps {
@@ -72,23 +73,23 @@ function ProductCard({
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)' }}
     >
       {/* Image */}
-      <div className="relative h-52 sm:h-60 overflow-hidden" style={{ background: '#F1F5F9' }}>
+      <div className="relative h-36 sm:h-44 flex items-center justify-center overflow-hidden" style={{ background: '#ffffff' }}>
         {product.image_url ? (
           <img
             src={product.image_url}
             alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+            className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500 ease-out"
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Package className="h-14 w-14" style={{ color: '#CBD5E1' }} />
+          <div className="flex items-center justify-center">
+            <Package className="h-10 w-10" style={{ color: '#CBD5E1' }} />
           </div>
         )}
         {/* Pre-order badge */}
         <div className="absolute top-3 left-3">
           <span
-            className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full"
+            className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full"
             style={{
               background: theme.badgeBg,
               color: theme.badgeText,
@@ -96,35 +97,40 @@ function ProductCard({
               backdropFilter: 'blur(8px)',
             }}
           >
-            <Star style={{ width: 9, height: 9 }} /> Pre-order
+            <Star style={{ width: 8, height: 8 }} /> Pre-order
           </span>
         </div>
       </div>
 
       {/* Content */}
-      <div className="p-4 sm:p-5">
+      <div className="p-3 sm:p-4">
         <h3
-          className="font-bold text-sm sm:text-base leading-snug line-clamp-2 mb-1 transition-colors duration-200"
+          className="font-bold text-xs sm:text-sm leading-snug line-clamp-2 mb-1 transition-colors duration-200"
           style={{ color: theme.cardNameColor, fontFamily: theme.fontDisplay }}
         >
           {product.name}
         </h3>
         {product.description && (
-          <p className="text-xs line-clamp-1 mb-3 hidden sm:block" style={{ color: '#94A3B8' }}>
+          <p className="text-[10px] line-clamp-1 mb-2 hidden sm:block" style={{ color: '#94A3B8' }}>
             {product.description}
           </p>
         )}
-        <div className="flex items-end justify-between gap-2 mt-3">
+        <div className="flex items-end justify-between gap-2 mt-2">
           <div>
-            <p className="text-[10px] uppercase tracking-wider font-semibold mb-0.5" style={{ color: '#94A3B8' }}>Price</p>
-            <p className="text-xl sm:text-2xl font-black tabular-nums leading-none" style={{ color: theme.priceColor }}>
+            <p className="text-[9px] uppercase tracking-wider font-semibold mb-0.5" style={{ color: '#94A3B8' }}>Price</p>
+            <p className="text-lg sm:text-xl font-black tabular-nums leading-none" style={{ color: theme.priceColor }}>
               GH₵{fmt(product.price)}
             </p>
+            {product.shipping_tag && (
+              <p className="text-[9px] uppercase tracking-wider font-semibold mt-1" style={{ color: '#94A3B8' }}>
+                {product.shipping_tag}
+              </p>
+            )}
           </div>
           <button
             onClick={handleAddToCart}
             disabled={adding}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all duration-300 active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold transition-all duration-300 active:scale-95"
             style={{
               background: added ? theme.addedBg : (adding ? '#94A3B8' : theme.btnBg),
               color: theme.btnText,

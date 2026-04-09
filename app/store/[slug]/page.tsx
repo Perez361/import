@@ -10,6 +10,7 @@ interface Product {
   price: number
   image_url?: string
   description?: string
+  shipping_tag?: string | null
 }
 
 export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
