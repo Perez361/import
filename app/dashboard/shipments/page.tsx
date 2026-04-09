@@ -27,13 +27,13 @@ export default async function ShipmentsPage() {
     .from('shipment_batches')
     .select(`
       id, name, shipping_company, status, notes, created_at,
-      shipment_items ( id, status, pushed_to_order )
+      shipment_items ( id, status )
     `)
     .eq('importer_id', user.id)
     .order('created_at', { ascending: false })
 
   if (error) {
-    console.error('Error fetching shipment batches:', error)
+    console.error('Error fetching shipment batches:', JSON.stringify(error, null, 2))
   }
 
   const batchList = batches || []
@@ -88,7 +88,6 @@ export default async function ShipmentsPage() {
             const total = items.length
             const received = items.filter((i: any) => i.status === 'received').length
             const missing = items.filter((i: any) => i.status === 'missing').length
-            const pushed = items.filter((i: any) => i.pushed_to_order).length
             const cfg = statusConfig[batch.status] || statusConfig['open']
 
             return (
@@ -124,7 +123,6 @@ export default async function ShipmentsPage() {
                   {missing > 0 && (
                     <Stat label="Missing" value={missing} color="text-[var(--color-danger)]" icon={<AlertCircle className="h-3 w-3 text-[var(--color-danger)]" />} />
                   )}
-                  <Stat label="Billed to Orders" value={pushed} color="text-[var(--color-brand)]" />
                 </div>
 
                 {total > 0 && (

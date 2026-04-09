@@ -49,11 +49,9 @@ export default async function OrdersPage({
       status,
       created_at,
       shipping_fee,
-      shipping_paid,
       product_paid,
       product_payment_reference,
       shipping_billed_at,
-      shipping_paid_at,
       shipping_note,
       payment_reference,
       momo_number,
@@ -80,7 +78,7 @@ export default async function OrdersPage({
   const { data: orders, error } = await query
 
   if (error) {
-    console.error('Error fetching orders:', error)
+    console.error('Error fetching orders:', JSON.stringify(error, null, 2))
   }
 
   const orderList = orders || []
