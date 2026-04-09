@@ -10,6 +10,8 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import {
   markProductPaidAction,
+  markProcessingAction,
+  markArrivedAction,
   markShippingPaidAction,
   markDeliveredAction,
 } from './actions'
@@ -22,7 +24,6 @@ interface Order {
   status: string
   created_at: string
   shipping_fee?: number | null
-  shipping_paid?: boolean
   product_paid?: boolean
   product_payment_reference?: string | null
   shipping_note?: string | null
@@ -127,6 +128,8 @@ function CustomerRow({ order, onPatch }: {
   const [expanded, setExpanded]     = useState(false)
   const [ref, setRef]               = useState('')
   const [confirmingProduct, setCP]  = useState(false)
+  const [confirmingProcessing, setProcessing] = useState(false)
+  const [confirmingArrived, setArrived] = useState(false)
   const [confirmingShipping, setCS] = useState(false)
   const [markingDelivered, setMD]   = useState(false)
 
@@ -148,13 +151,31 @@ function CustomerRow({ order, onPatch }: {
     setRef('')
   }
 
+  const handleMarkProcessing = async () => {
+    setProcessing(true)
+    const result: any = await markProcessingAction(order.id)
+    setProcessing(false)
+    if (result?.error) { toast.error(result.error); return }
+    toast.success('Moved to processing!')
+    onPatch(order.id, { status: 'processing' })
+  }
+
+  const handleMarkArrived = async () => {
+    setArrived(true)
+    const result: any = await markArrivedAction(order.id)
+    setArrived(false)
+    if (result?.error) { toast.error(result.error); return }
+    toast.success('Shipment marked as arrived!')
+    onPatch(order.id, { status: 'arrived' })
+  }
+
   const handleVerifyShippingPayment = async () => {
     setCS(true)
     const result: any = await markShippingPaidAction(order.id)
     setCS(false)
     if (result?.error) { toast.error(result.error); return }
     toast.success('Shipping payment verified!')
-    onPatch(order.id, { shipping_paid: true, status: 'shipping_paid' })
+    onPatch(order.id, { status: 'shipping_paid' })
   }
 
   const handleMarkDelivered = async () => {
@@ -255,6 +276,48 @@ function CustomerRow({ order, onPatch }: {
             </div>
           )}
 
+          {status === 'product_paid' && (
+            <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-indigo-600 shrink-0" />
+                <p className="text-sm font-semibold text-indigo-700">
+                  Order is being processed — preparing for shipment
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={confirmingProcessing}
+                  onClick={e => { e.stopPropagation(); handleMarkProcessing() }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  {confirmingProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  Mark as Processing
+                </button>
+              </div>
+            </div>
+          )}
+
+          {status === 'processing' && (
+            <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <Truck className="h-4 w-4 text-purple-600 shrink-0" />
+                <p className="text-sm font-semibold text-purple-700">
+                  Order is in transit or awaiting arrival
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={confirmingArrived}
+                  onClick={e => { e.stopPropagation(); handleMarkArrived() }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  {confirmingArrived ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  Mark as Arrived
+                </button>
+              </div>
+            </div>
+          )}
+
           {status === 'shipping_billed' && (
             <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-3 flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 min-w-0">
@@ -281,12 +344,12 @@ function CustomerRow({ order, onPatch }: {
             </div>
           )}
 
-          {status === 'shipping_paid' && !order.shipping_paid && (
-            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2.5">
+          {status === 'shipping_paid' && (
+            <div className="mt-3 rounded-xl border border-[var(--color-success)] bg-[var(--color-success-light)] p-3 space-y-2.5">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                <p className="text-sm font-semibold text-emerald-700">
-                  Customer submitted shipping payment — GH₵{fmt(shippingFee)}
+                <CheckCircle2 className="h-4 w-4 text-[var(--color-success)] shrink-0" />
+                <p className="text-sm font-semibold text-[var(--color-success)]">
+                  Payment verified — GH₵{fmt(shippingFee)} received
                 </p>
               </div>
               {(order.momo_number || order.payment_reference) && (
@@ -299,25 +362,6 @@ function CustomerRow({ order, onPatch }: {
                   )}
                 </div>
               )}
-              <button
-                disabled={confirmingShipping}
-                onClick={e => { e.stopPropagation(); handleVerifyShippingPayment() }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-50"
-              >
-                {confirmingShipping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                Verify Payment
-              </button>
-            </div>
-          )}
-
-          {status === 'shipping_paid' && order.shipping_paid && (
-            <div className="mt-3 rounded-xl border border-[var(--color-success)] bg-[var(--color-success-light)] p-3 space-y-2.5">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-[var(--color-success)] shrink-0" />
-                <p className="text-sm font-semibold text-[var(--color-success)]">
-                  Payment verified — GH₵{fmt(shippingFee)} received
-                </p>
-              </div>
               <p className="text-xs text-[var(--color-text-muted)]">
                 Once you've physically handed the item to the customer, mark it as delivered.
               </p>

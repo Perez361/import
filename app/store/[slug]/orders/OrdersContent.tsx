@@ -7,7 +7,7 @@ import {
   DollarSign, Loader2, ShoppingBag, Package, Receipt,
   ChevronDown, ChevronUp, XCircle,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { createCustomerClient } from '@/lib/supabase/customer-client'
 import { useStore } from '@/components/store/StoreContext'
 import { toast } from 'sonner'
 import { customerConfirmShippingPaymentAction } from '@/app/dashboard/orders/actions'
@@ -362,6 +362,32 @@ function MonthInvoiceCard({ invoice, slug, onUpdate }: {
   const totalShipping = orders.reduce((s, o) => s + nv(o.shipping_fee), 0)
   const grandTotal = totalProducts + totalShipping
 
+  const shippingBilledOrders = orders.filter(o => o.status === 'shipping_billed')
+  const totalShippingDue = shippingBilledOrders.reduce((s, o) => s + nv(o.shipping_fee), 0)
+  const [form, setForm] = useState({ momoNumber: '', reference: '' })
+  const [paying, setPaying] = useState(false)
+
+  const handlePayAll = async () => {
+    if (!form.momoNumber || !form.reference) {
+      toast.error('Enter your MoMo number and transaction reference')
+      return
+    }
+    setPaying(true)
+    
+    for (const order of shippingBilledOrders) {
+      const result = await customerConfirmShippingPaymentAction(order.id, form.momoNumber, form.reference)
+      if (result?.error) {
+        toast.error(`Payment failed for order #${order.id.slice(-6)}: ${result.error}`)
+      } else {
+        onUpdate2(order.id, { status: 'shipping_paid', momo_number: form.momoNumber, payment_reference: form.reference })
+      }
+    }
+    
+    setPaying(false)
+    toast.success(`Payment submitted for ${shippingBilledOrders.length} order${shippingBilledOrders.length > 1 ? 's' : ''}! The importer will verify and deliver your orders.`)
+    setForm({ momoNumber: '', reference: '' })
+  }
+
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
       <button
@@ -388,6 +414,53 @@ function MonthInvoiceCard({ invoice, slug, onUpdate }: {
           {orders.map(order => (
             <OrderCard key={order.id} order={order} slug={slug} onUpdate={onUpdate2} />
           ))}
+          
+          {shippingBilledOrders.length > 0 && totalShippingDue > 0 && (
+            <div className="rounded-xl border-2 border-orange-300 bg-orange-50 p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-bold text-orange-700 text-sm">
+                    {shippingBilledOrders.length} order{shippingBilledOrders.length > 1 ? 's' : ''} awaiting shipping payment — Total: GH₵{fmt(totalShippingDue)}
+                  </p>
+                  <p className="text-xs text-orange-600 mt-0.5">
+                    Your items have arrived! Pay the shipping fee via MoMo to receive your orders.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Your MoMo Number</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 0551234567"
+                    value={form.momoNumber}
+                    onChange={e => setForm(p => ({ ...p, momoNumber: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-orange-200 bg-white text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">MoMo Transaction Reference</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ABC123456"
+                    value={form.reference}
+                    onChange={e => setForm(p => ({ ...p, reference: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-orange-200 bg-white text-sm font-mono focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handlePayAll}
+                  disabled={paying}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                >
+                  {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4" />}
+                  Pay GH₵{fmt(totalShippingDue)} for {shippingBilledOrders.length} Order{shippingBilledOrders.length > 1 ? 's' : ''}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] p-3 text-sm space-y-1.5">
             <div className="flex justify-between text-[var(--color-text-muted)]">
               <span>Products total</span>
@@ -422,13 +495,13 @@ export default function OrdersContent({ slug }: { slug: string }) {
     if (!store.customerId) { setLoading(false); return }
 
     let cancelled = false
-    const supabase = createClient()
+    const supabase = createCustomerClient(slug)
 
     supabase
       .from('orders')
       .select(`
         id, total, status, created_at,
-        shipping_fee, shipping_paid, shipping_note,
+        shipping_fee, shipping_note,
         payment_reference, momo_number,
         order_items (
           id, quantity,
@@ -445,7 +518,7 @@ export default function OrdersContent({ slug }: { slug: string }) {
       .catch(() => { if (!cancelled) setLoading(false) })
 
     return () => { cancelled = true }
-  }, [store.loading, store.customerId])
+  }, [store.loading, store.customerId, slug])
 
   const updateOrder = (id: string, patch: Partial<Order>) => {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o))

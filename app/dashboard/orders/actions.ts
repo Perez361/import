@@ -39,8 +39,6 @@ export async function markShippingPaidAction(orderId: string) {
   const { error } = await supabase
     .from('orders')
     .update({
-      shipping_paid: true,
-      shipping_paid_at: new Date().toISOString(),
       status: 'shipping_paid', // stays here until importer physically delivers
     })
     .eq('id', orderId)
@@ -126,9 +124,50 @@ export async function markProductPaidAction(orderId: string, reference?: string)
     .from('orders')
     .update({
       product_paid: true,
-      product_paid_at: new Date().toISOString(),
       product_payment_reference: reference || null,
       status: 'product_paid',
+    })
+    .eq('id', orderId)
+    .eq('store_id', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/orders')
+  return { success: true }
+}
+
+// Importer: move order to processing (after product paid, while waiting for shipment)
+export async function markProcessingAction(orderId: string) {
+  const user = await getAuthenticatedUser()
+  if (!user) redirect('/login')
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      status: 'processing',
+    })
+    .eq('id', orderId)
+    .eq('store_id', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/orders')
+  return { success: true }
+}
+
+// Importer: mark shipment as arrived (ready to bill shipping)
+export async function markArrivedAction(orderId: string) {
+  const user = await getAuthenticatedUser()
+  if (!user) redirect('/login')
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      status: 'arrived',
     })
     .eq('id', orderId)
     .eq('store_id', user.id)
