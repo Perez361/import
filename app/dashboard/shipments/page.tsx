@@ -1,29 +1,59 @@
-import { redirect } from 'next/navigation'
-import { getAuthenticatedUser } from '@/lib/auth/session'
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Truck, Plus, Package, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import NewBatchForm from './NewBatchForm'
 import RealtimeRefresher from './RealtimeRefresher'
 
-export const metadata = { title: 'Shipments – ImportFlow PRO' }
+export default function ShipmentsPage() {
+  const router = useRouter()
+  const [batches, setBatches] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [importerId, setImporterId] = useState<string>('')
 
-export default async function ShipmentsPage() {
-  const user = await getAuthenticatedUser()
-  if (!user) redirect('/login')
+  const fetchBatches = useCallback(async () => {
+    try {
+      const supabase = createClient()
 
-  const supabase = await createClient()
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        router.push('/login')
+        return
+      }
 
-  const importerId = user.id // Assuming importer.id = user.id
+      setImporterId(user.id)
 
-  const { data: batches } = await supabase
-    .from('shipment_batches')
-    .select(`
-      id, name, shipping_company, status, notes, created_at,
-      shipment_items ( id, status, pushed_to_order )
-    `)
-    .eq('importer_id', user.id)
-    .order('created_at', { ascending: false })
+      const { data: batchesData, error: batchesError } = await supabase
+        .from('shipment_batches')
+        .select(`
+          id, name, shipping_company, status, notes, created_at,
+          shipment_items ( id, status, pushed_to_order )
+        `)
+        .eq('importer_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (batchesError) {
+        console.error('Error fetching batches:', batchesError)
+        setError(batchesError.message)
+      } else {
+        setBatches(batchesData || [])
+      }
+    } catch (err: any) {
+      console.error('Shipments page error:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [router])
+
+  useEffect(() => {
+    fetchBatches()
+  }, [fetchBatches])
 
   const batchList = batches || []
 
@@ -45,6 +75,49 @@ export default async function ShipmentsPage() {
     },
   }
 
+  if (loading) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Shipments</h1>
+            <p className="text-sm text-[var(--color-text-muted)]">
+              Track overseas freight batches and reconcile deliveries
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden p-12 text-center">
+          <div className="animate-spin h-8 w-8 border-4 border-[var(--color-brand)] border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-[var(--color-text-muted)]">Loading shipments...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Shipments</h1>
+            <p className="text-sm text-[var(--color-text-muted)]">
+              Track overseas freight batches and reconcile deliveries
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-red-200 bg-red-50 shadow-sm overflow-hidden p-12 text-center">
+          <p className="text-red-700 mb-4">Error loading shipments: {error}</p>
+          <button
+            onClick={fetchBatches}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <RealtimeRefresher importerId={importerId} />
@@ -52,10 +125,12 @@ export default async function ShipmentsPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Shipments</h1>
-          <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
-            Track overseas orders and reconcile with your freight company
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Track overseas freight batches and reconcile deliveries
           </p>
         </div>
+        <NewBatchForm />
+      </div>
       </div>
 
       {/* New batch form */}

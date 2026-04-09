@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
 // Dedicated client for importer/staff sessions.
 // Uses its own localStorage key so it never collides with customer sessions.
@@ -15,6 +16,28 @@ export function createImporterClient() {
           persistSession: true,
           autoRefreshToken: true,
           detectSessionInUrl: true,
+          storage: {
+            getItem: (key: string) => {
+              if (typeof window === 'undefined') return null
+              try {
+                return localStorage.getItem(key)
+              } catch {
+                return null
+              }
+            },
+            setItem: (key: string, value: string) => {
+              if (typeof window === 'undefined') return
+              try {
+                localStorage.setItem(key, value)
+              } catch {}
+            },
+            removeItem: (key: string) => {
+              if (typeof window === 'undefined') return
+              try {
+                localStorage.removeItem(key)
+              } catch {}
+            },
+          },
         },
       }
     )
