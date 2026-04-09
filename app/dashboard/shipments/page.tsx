@@ -1,59 +1,40 @@
-'use client'
-
-import { useCallback, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+// app/dashboard/shipments/page.tsx
+import { redirect } from 'next/navigation'
+import { getAuthenticatedUser } from '@/lib/auth/session'
+import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Truck, Plus, Package, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { Truck, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 import NewBatchForm from './NewBatchForm'
 import RealtimeRefresher from './RealtimeRefresher'
 
-export default function ShipmentsPage() {
-  const router = useRouter()
-  const [batches, setBatches] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [importerId, setImporterId] = useState<string>('')
+function Stat({ label, value, color, icon }: { label: string; value: number; color: string; icon?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {icon}
+      <span className={`text-sm font-bold tabular-nums ${color}`}>{value}</span>
+      <span className="text-xs text-[var(--color-text-muted)]">{label}</span>
+    </div>
+  )
+}
 
-  const fetchBatches = useCallback(async () => {
-    try {
-      const supabase = createClient()
+export default async function ShipmentsPage() {
+  const user = await getAuthenticatedUser()
+  if (!user) redirect('/login')
 
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) {
-        router.push('/login')
-        return
-      }
+  const supabase = await createClient()
 
-      setImporterId(user.id)
+  const { data: batches, error } = await supabase
+    .from('shipment_batches')
+    .select(`
+      id, name, shipping_company, status, notes, created_at,
+      shipment_items ( id, status, pushed_to_order )
+    `)
+    .eq('importer_id', user.id)
+    .order('created_at', { ascending: false })
 
-      const { data: batchesData, error: batchesError } = await supabase
-        .from('shipment_batches')
-        .select(`
-          id, name, shipping_company, status, notes, created_at,
-          shipment_items ( id, status, pushed_to_order )
-        `)
-        .eq('importer_id', user.id)
-        .order('created_at', { ascending: false })
-
-      if (batchesError) {
-        console.error('Error fetching batches:', batchesError)
-        setError(batchesError.message)
-      } else {
-        setBatches(batchesData || [])
-      }
-    } catch (err: any) {
-      console.error('Shipments page error:', err)
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [router])
-
-  useEffect(() => {
-    fetchBatches()
-  }, [fetchBatches])
+  if (error) {
+    console.error('Error fetching shipment batches:', error)
+  }
 
   const batchList = batches || []
 
@@ -66,7 +47,7 @@ export default function ShipmentsPage() {
     received: {
       label: 'Received',
       classes: 'bg-yellow-100 text-yellow-700',
-      icon: <Package className="h-3 w-3" />,
+      icon: <Truck className="h-3 w-3" />,
     },
     reconciled: {
       label: 'Reconciled',
@@ -75,53 +56,10 @@ export default function ShipmentsPage() {
     },
   }
 
-  if (loading) {
-    return (
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Shipments</h1>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              Track overseas freight batches and reconcile deliveries
-            </p>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden p-12 text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-[var(--color-brand)] border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-[var(--color-text-muted)]">Loading shipments...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Shipments</h1>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              Track overseas freight batches and reconcile deliveries
-            </p>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-red-200 bg-red-50 shadow-sm overflow-hidden p-12 text-center">
-          <p className="text-red-700 mb-4">Error loading shipments: {error}</p>
-          <button
-            onClick={fetchBatches}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <RealtimeRefresher importerId={importerId} />
-      {/* Header */}
+      <RealtimeRefresher importerId={user.id} />
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Shipments</h1>
@@ -131,10 +69,8 @@ export default function ShipmentsPage() {
         </div>
       </div>
 
-      {/* New batch form */}
       <NewBatchForm />
 
-      {/* Batch list */}
       {batchList.length === 0 ? (
         <div className="rounded-2xl border-2 border-dashed border-[var(--color-border)] p-12 text-center">
           <Truck className="h-14 w-14 text-[var(--color-text-muted)] mx-auto mb-4" />
@@ -182,17 +118,15 @@ export default function ShipmentsPage() {
                   </span>
                 </div>
 
-                {/* Stats row */}
                 <div className="mt-4 flex items-center gap-4 flex-wrap">
                   <Stat label="Total Items" value={total} color="text-[var(--color-text-primary)]" />
                   <Stat label="Received" value={received} color="text-[var(--color-success)]" />
                   {missing > 0 && (
-                    <Stat label="Missing" value={missing} color="text-[var(--color-danger)]" icon={<AlertCircle className="h-3 w-3" />} />
+                    <Stat label="Missing" value={missing} color="text-[var(--color-danger)]" icon={<AlertCircle className="h-3 w-3 text-[var(--color-danger)]" />} />
                   )}
                   <Stat label="Billed to Orders" value={pushed} color="text-[var(--color-brand)]" />
                 </div>
 
-                {/* Progress bar */}
                 {total > 0 && (
                   <div className="mt-3 h-1.5 rounded-full bg-[var(--color-surface)] overflow-hidden">
                     <div
@@ -212,16 +146,6 @@ export default function ShipmentsPage() {
           })}
         </div>
       )}
-    </div>
-  )
-}
-
-function Stat({ label, value, color, icon }: { label: string; value: number; color: string; icon?: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      {icon}
-      <span className={`text-sm font-bold tabular-nums ${color}`}>{value}</span>
-      <span className="text-xs text-[var(--color-text-muted)]">{label}</span>
     </div>
   )
 }

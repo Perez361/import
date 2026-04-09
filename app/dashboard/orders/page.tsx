@@ -1,10 +1,9 @@
-'use client'
-
-import { useCallback, useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+// app/dashboard/orders/page.tsx
+import { redirect } from 'next/navigation'
+import { getAuthenticatedUser } from '@/lib/auth/session'
+import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { ShoppingCart } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import OrdersTable from './OrdersTable'
 
 const filters = [
@@ -19,144 +18,75 @@ const filters = [
   { label: 'Cancelled', value: 'cancelled' },
 ]
 
-export default function OrdersPage() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const statusFilter = searchParams.get('status') || 'all'
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>
+}) {
+  const user = await getAuthenticatedUser()
+  if (!user) redirect('/login')
 
-  const [orders, setOrders] = useState<any[]>([])
-  const [importer, setImporter] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const params = await searchParams
+  const statusFilter = params.status || 'all'
 
-  const fetchData = useCallback(async () => {
-    try {
-      const supabase = createClient()
+  const supabase = await createClient()
 
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) {
-        router.push('/login')
-        return
-      }
+  // Fetch importer
+  const { data: importer } = await supabase
+    .from('importers')
+    .select('*')
+    .eq('id', user.id)
+    .single()
 
-      // Get importer
-      const { data: importerData, error: importerError } = await supabase
-        .from('importers')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+  if (!importer) redirect('/login')
 
-      if (importerError || !importerData) {
-        router.push('/login')
-        return
-      }
+  // Fetch orders
+  let query = supabase
+    .from('orders')
+    .select(`
+      id,
+      total,
+      status,
+      created_at,
+      shipping_fee,
+      shipping_paid,
+      product_paid,
+      product_payment_reference,
+      shipping_billed_at,
+      shipping_paid_at,
+      shipping_note,
+      payment_reference,
+      momo_number,
+      customers (
+        id,
+        full_name,
+        username,
+        contact,
+        email
+      ),
+      order_items (
+        quantity,
+        price,
+        products ( id, name, image_url )
+      )
+    `)
+    .eq('store_id', importer.id)
+    .order('created_at', { ascending: false })
 
-      setImporter(importerData)
+  if (statusFilter !== 'all') {
+    query = query.eq('status', statusFilter)
+  }
 
-      // Fetch orders
-      let query = supabase
-        .from('orders')
-        .select(`
-          id,
-          total,
-          status,
-          created_at,
-          shipping_fee,
-          shipping_paid,
-          product_paid,
-          product_payment_reference,
-          shipping_billed_at,
-          shipping_paid_at,
-          shipping_note,
-          payment_reference,
-          momo_number,
-          customers (
-            id,
-            full_name,
-            username,
-            contact,
-            email
-          ),
-          order_items (
-            quantity,
-            price,
-            products ( id, name, image_url )
-          )
-        `)
-        .eq('store_id', importerData.id)
-        .order('created_at', { ascending: false })
+  const { data: orders, error } = await query
 
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter)
-      }
-
-      const { data: ordersData, error: ordersError } = await query
-      if (ordersError) {
-        console.error('Error fetching orders:', ordersError)
-        setError(ordersError.message)
-      } else {
-        setOrders(ordersData || [])
-      }
-    } catch (err: any) {
-      console.error('Orders page error:', err)
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [statusFilter, router])
-
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  if (error) {
+    console.error('Error fetching orders:', error)
+  }
 
   const orderList = orders || []
   const awaitingProductPayment = orderList.filter((o) => o.status === 'pending').length
   const awaitingBill = orderList.filter((o) => o.status === 'arrived').length
   const awaitingVerification = orderList.filter((o) => o.status === 'shipping_paid').length
-
-  if (loading) {
-    return (
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text-primary)]">Orders</h1>
-            <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
-              Manage pre-orders and shipping billing
-            </p>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm overflow-hidden p-12 text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-[var(--color-brand)] border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-[var(--color-text-muted)]">Loading orders...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text-primary)]">Orders</h1>
-            <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
-              Manage pre-orders and shipping billing
-            </p>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-red-200 bg-red-50 shadow-sm overflow-hidden p-12 text-center">
-          <p className="text-red-700 mb-4">Error loading orders: {error}</p>
-          <button
-            onClick={fetchData}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
