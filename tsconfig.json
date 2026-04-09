@@ -20,7 +20,7 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      "@importflow/shared": ["../packages/shared/index.ts"]
+      "@importflow/shared": ["./packages/shared/index.ts"]
     }
   },
   "include": [
