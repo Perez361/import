@@ -67,7 +67,8 @@ export default function ProductsTable({ initialProducts }: ProductsTableProps) {
       .eq('id', productId)
     setSavingTrackingId(null)
     if (error) {
-      toast.error('Failed to save tracking number')
+      console.error('Save tracking error:', error)
+      toast.error('Failed to save tracking number: ' + error.message)
     } else {
       setProducts((prev) =>
         prev.map((p) => (p.id === productId ? { ...p, tracking_number: value } : p))

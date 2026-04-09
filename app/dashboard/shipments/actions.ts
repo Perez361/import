@@ -72,7 +72,6 @@ export async function addShipmentItemAction(
   const rows = items.map((i) => ({
     ...i,
     batch_id: batchId,
-    importer_id: user.id,
   }))
 
   const { error } = await supabase.from('shipment_items').upsert(rows, {
@@ -103,11 +102,19 @@ export async function deleteShipmentItemAction(itemId: string, batchId: string) 
   if (!user) redirect('/login')
   const supabase = await createClient()
 
+  // Verify ownership through batch relationship
+  const { data: item } = await supabase
+    .from('shipment_items')
+    .select('id')
+    .eq('id', itemId)
+    .single()
+
+  if (!item) return { error: 'Item not found' }
+
   const { error } = await supabase
     .from('shipment_items')
     .delete()
     .eq('id', itemId)
-    .eq('importer_id', user.id)
 
   if (error) return { error: error.message }
   revalidatePath(`/dashboard/shipments/${batchId}`)
@@ -208,7 +215,6 @@ export async function pushFreightToOrderAction(shipmentItemId: string, batchId: 
     .from('shipment_items')
     .select('*')
     .eq('id', shipmentItemId)
-    .eq('importer_id', user.id)
     .single()
 
   if (!item) return { error: 'Item not found' }
