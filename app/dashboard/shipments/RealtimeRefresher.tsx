@@ -1,9 +1,12 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 export default function RealtimeRefresher({ importerId }: { importerId: string }) {
+  const router = useRouter()
+
   useEffect(() => {
     if (!importerId) return
     const supabase = createClient()
@@ -15,15 +18,16 @@ export default function RealtimeRefresher({ importerId }: { importerId: string }
         table: 'shipment_batches',
         filter: `importer_id=eq.${importerId}`,
       }, () => {
-        // Refresh the page to show updated shipments
-        window.location.reload()
+        // Use Next.js router refresh instead of window.location.reload()
+        // This re-fetches server data without a full page reload
+        router.refresh()
       })
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [importerId])
+  }, [importerId, router])
 
-  return null // This component doesn't render anything
+  return null
 }

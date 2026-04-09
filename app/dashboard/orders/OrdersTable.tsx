@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Phone, MessageCircle, CheckCircle2, Loader2,
   CreditCard, PackageCheck, AlertCircle, Package,
@@ -148,7 +148,6 @@ function CustomerRow({ order, onPatch }: {
     setRef('')
   }
 
-  // Step 1: verify the customer's MoMo payment — stays at shipping_paid, does NOT deliver
   const handleVerifyShippingPayment = async () => {
     setCS(true)
     const result: any = await markShippingPaidAction(order.id)
@@ -158,7 +157,6 @@ function CustomerRow({ order, onPatch }: {
     onPatch(order.id, { shipping_paid: true, status: 'shipping_paid' })
   }
 
-  // Step 2: physically hand over to customer → mark delivered
   const handleMarkDelivered = async () => {
     setMD(true)
     const result: any = await markDeliveredAction(order.id)
@@ -170,7 +168,6 @@ function CustomerRow({ order, onPatch }: {
 
   return (
     <>
-      {/* ── Main row ── */}
       <div
         className="grid grid-cols-[1fr_110px_120px_32px] gap-x-3 items-center px-4 py-3 hover:bg-[var(--color-surface)] transition-colors cursor-pointer"
         onClick={() => setExpanded(!expanded)}
@@ -203,11 +200,9 @@ function CustomerRow({ order, onPatch }: {
         </div>
       </div>
 
-      {/* ── Expanded panel ── */}
       {expanded && (
         <div className="px-4 pb-4 space-y-3 bg-[var(--color-surface)] border-t border-[var(--color-border)]">
 
-          {/* ── Confirm product payment ── */}
           {status === 'pending' && (
             <div className="mt-3 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50 p-3 space-y-2.5">
               <div className="flex items-center gap-2">
@@ -248,7 +243,6 @@ function CustomerRow({ order, onPatch }: {
             </div>
           )}
 
-          {/* ── Product paid strip ── */}
           {order.product_paid && status !== 'pending' && (
             <div className="mt-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 flex items-center gap-2">
               <CreditCard className="h-3.5 w-3.5 text-blue-600 shrink-0" />
@@ -261,7 +255,6 @@ function CustomerRow({ order, onPatch }: {
             </div>
           )}
 
-          {/* ── Shipping billed — WhatsApp reminder ── */}
           {status === 'shipping_billed' && (
             <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-3 flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 min-w-0">
@@ -288,7 +281,6 @@ function CustomerRow({ order, onPatch }: {
             </div>
           )}
 
-          {/* ── STEP 1: Customer submitted payment — verify MoMo ── */}
           {status === 'shipping_paid' && !order.shipping_paid && (
             <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2.5">
               <div className="flex items-center gap-2">
@@ -318,7 +310,6 @@ function CustomerRow({ order, onPatch }: {
             </div>
           )}
 
-          {/* ── STEP 2: Payment verified — mark delivered when physically handed over ── */}
           {status === 'shipping_paid' && order.shipping_paid && (
             <div className="mt-3 rounded-xl border border-[var(--color-success)] bg-[var(--color-success-light)] p-3 space-y-2.5">
               <div className="flex items-center gap-2">
@@ -341,7 +332,6 @@ function CustomerRow({ order, onPatch }: {
             </div>
           )}
 
-          {/* ── Delivered ── */}
           {status === 'delivered' && (
             <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-2.5 flex items-center gap-2">
               <PackageCheck className="h-4 w-4 text-[var(--color-success)] shrink-0" />
@@ -351,7 +341,6 @@ function CustomerRow({ order, onPatch }: {
             </div>
           )}
 
-          {/* ── Cancelled ── */}
           {status === 'cancelled' && (
             <div className="mt-3 rounded-lg border border-[var(--color-danger-light)] bg-[var(--color-danger-light)] px-3 py-2.5">
               <p className="text-sm font-semibold text-[var(--color-danger)]">Order cancelled</p>
@@ -448,33 +437,12 @@ function ProductGroupCard({ group }: { group: ProductGroup }) {
   )
 }
 
-// ── Main export — groups orders by product ────────────────────────────────────
+// ── Main export ────────────────────────────────────────────────────────────────
 
 export default function OrdersTable({ orders, storeId }: Props & { storeId: string }) {
   const [groups, setGroups] = useState<ProductGroup[]>([])
 
-  // Real-time subscription for order updates
-  useEffect(() => {
-    if (!storeId) return
-    const supabase = createClient()
-    const channel = supabase
-      .channel(`orders-${storeId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders',
-        filter: `store_id=eq.${storeId}`,
-      }, () => {
-        // Refresh the page to show updated orders
-        window.location.reload()
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [storeId])
-
+  // Build groups from props (runs on mount and when orders prop changes)
   useEffect(() => {
     const map = new Map<string, ProductGroup>()
 
@@ -510,7 +478,37 @@ export default function OrdersTable({ orders, storeId }: Props & { storeId: stri
     setGroups(Array.from(map.values()))
   }, [orders])
 
-  if (groups.length === 0) return null
+  // Real-time subscription — updates groups in-place instead of reloading
+  useEffect(() => {
+    if (!storeId) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`orders-${storeId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `store_id=eq.${storeId}`,
+      }, (payload: { new: Order }) => {
+        // Patch the updated order in groups state without a full reload
+        const updated = payload.new as Order
+        setGroups(prev => prev.map(group => ({
+          ...group,
+          orders: group.orders.map(o => o.id === updated.id ? { ...o, ...updated } : o),
+        })))
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [storeId])
+
+  if (groups.length === 0) return (
+    <div className="p-12 text-center text-sm text-[var(--color-text-muted)]">
+      No orders to display.
+    </div>
+  )
 
   return (
     <div className="p-4 sm:p-5 space-y-4">
