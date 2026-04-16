@@ -153,6 +153,14 @@ export default function LoginForm() {
           >
             {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" />Logging in…</> : 'Login'}
           </button>
+          <div className="text-center">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-(--color-text-muted) hover:text-(--color-brand) transition-colors"
+            >
+              Forgot your password?
+            </Link>
+          </div>
         </form>
       )}
 

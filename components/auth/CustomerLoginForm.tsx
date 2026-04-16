@@ -213,6 +213,14 @@ export default function CustomerLoginForm({ slug }: { slug: string }) {
           >
             {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" />Logging in…</> : 'Continue Shopping'}
           </button>
+          <div className="text-center">
+            <Link
+              href={`/store/${slug}/forgot-password`}
+              className="text-sm text-(--color-text-muted) hover:text-(--color-brand) transition-colors"
+            >
+              Forgot your password?
+            </Link>
+          </div>
         </form>
       )}
 

@@ -99,6 +99,7 @@ export default function RegisterForm() {
       email: data.email,
       password: data.password,
       options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/account/verified&type=email_confirm`,
         data: {
           business_name: data.businessName,
           full_name: data.fullName,

@@ -130,6 +130,7 @@ export default function CustomerRegisterForm({ slug }: { slug: string }) {
       email: data.email,
       password: data.password,
       options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/account/verified?store=' + slug)}&type=email_confirm`,
         data: {
           store_slug: slug,
           customer: true,

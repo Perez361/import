@@ -34,6 +34,16 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=auth_callback_error`)
   }
 
+  // ── Short-circuit for email confirmation and password reset ──────────────
+  // type=email_confirm : user clicked their signup confirmation email
+  // type=recovery      : user clicked a password reset link
+  // In both cases the code has already been exchanged above (session in cookie).
+  // Skip importer/customer creation logic and just redirect to `next`.
+  const callbackType = searchParams.get('type')
+  if (callbackType === 'email_confirm' || callbackType === 'recovery') {
+    return NextResponse.redirect(`${origin}${next}`)
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.redirect(`${origin}/login?error=auth_callback_error`)

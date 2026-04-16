@@ -80,3 +80,14 @@ export async function logoutAction() {
   const supabase = await createClient()
   await supabase.auth.signOut()
 }
+
+/**
+ * Server-side password update — works for both importers and customers.
+ * The recovery session must already be in the cookie (set by /auth/callback).
+ */
+export async function resetPasswordAction(password: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) return { error: error.message }
+  return { success: true }
+}
