@@ -24,13 +24,16 @@ function slugify(text: string): string {
 
 export default function StorefrontClient({ importer, products }: { importer: Importer; products: Product[] }) {
   const [copied, setCopied] = useState(false)
+  const [origin, setOrigin] = useState('')
+
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
 
   const businessName = importer.business_name || 'My Store'
   const storeSlug = importer.store_slug || slugify(importer.username || 'my-store')
 
-  const storeUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/store/${storeSlug}`
-    : `https://import-roan.vercel.app/store/${storeSlug}`
+  const storeUrl = origin ? `${origin}/store/${storeSlug}` : `/store/${storeSlug}`
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(storeUrl)
