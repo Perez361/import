@@ -34,7 +34,8 @@ export default function AuthHashRedirect() {
       const accessToken = params.get('access_token') ?? ''
       let storeSlug: string | null = null
       try {
-        const payload = JSON.parse(atob(accessToken.split('.')[1]))
+        const b64 = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+        const payload = JSON.parse(atob(b64))
         storeSlug = payload?.user_metadata?.store_slug ?? null
       } catch { /* malformed token, ignore */ }
 
@@ -50,7 +51,8 @@ export default function AuthHashRedirect() {
       const accessToken = params.get('access_token') ?? ''
       let storeSlug: string | null = null
       try {
-        const payload = JSON.parse(atob(accessToken.split('.')[1]))
+        const b64 = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+        const payload = JSON.parse(atob(b64))
         storeSlug = payload?.user_metadata?.store_slug ?? null
       } catch { /* ignore */ }
 
