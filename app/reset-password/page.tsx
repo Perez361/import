@@ -47,8 +47,8 @@ export default function ResetPasswordPage() {
     })
 
     // Also check immediately — handles page refreshes where session is already in storage
-    supabase.auth.getSession().then(({ data }) => {
-      const session = data.session
+    supabase.auth.getSession().then((result) => {
+      const session = result.data.session
       if (settled) return
       if (session) { settled = true; setReady(true) }
     })
