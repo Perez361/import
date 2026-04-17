@@ -323,6 +323,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
   const { cartCount, cartItems } = useCart()
   const store = useStore()
   const [showCart, setShowCart] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [search, setSearch] = useState('')
   const [pendingOrderCount, setPendingOrderCount] = useState(0)
   const cartTotal = cartItems.reduce((s, i) => s + i.quantity * i.products.price, 0)
@@ -397,6 +398,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
             <div className="flex items-center gap-2 shrink-0">
               {isLoggedIn && customerName ? (
                 <>
+                  {/* Orders link */}
                   <Link
                     href={`/store/${slug}/orders`}
                     className="relative hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all"
@@ -411,25 +413,57 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                       </span>
                     )}
                   </Link>
-                  <Link
-                    href={`/store/${slug}/profile`}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 transition-all"
-                  >
-                    {customerAvatar ? (
-                      <img src={customerAvatar} alt={customerName} className="h-7 w-7 rounded-xl object-cover" style={{ outline: `2px solid ${theme.heroAccent}30` }} />
-                    ) : (
-                      <div className="h-7 w-7 rounded-xl flex items-center justify-center" style={{ background: theme.btnBg }}>
-                        <User className="h-3.5 w-3.5" style={{ color: theme.btnText }} />
-                      </div>
+
+                  {/* Profile dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowProfileMenu(v => !v)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-100 transition-all"
+                    >
+                      {customerAvatar ? (
+                        <img src={customerAvatar} alt={customerName} className="h-7 w-7 rounded-xl object-cover" style={{ outline: `2px solid ${theme.heroAccent}30` }} />
+                      ) : (
+                        <div className="h-7 w-7 rounded-xl flex items-center justify-center" style={{ background: theme.btnBg }}>
+                          <User className="h-3.5 w-3.5" style={{ color: theme.btnText }} />
+                        </div>
+                      )}
+                      <span className="hidden sm:inline text-xs font-semibold text-slate-700 max-w-[80px] truncate">{customerName}</span>
+                    </button>
+
+                    {showProfileMenu && (
+                      <>
+                        {/* Backdrop */}
+                        <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
+                        {/* Dropdown */}
+                        <div className="absolute right-0 top-full mt-2 w-44 rounded-2xl bg-white shadow-xl border border-slate-100 overflow-hidden z-50">
+                          <Link
+                            href={`/store/${slug}/profile`}
+                            onClick={() => setShowProfileMenu(false)}
+                            className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                          >
+                            <User className="h-4 w-4 text-slate-400" />
+                            Profile
+                          </Link>
+                          <Link
+                            href={`/store/${slug}/orders`}
+                            onClick={() => setShowProfileMenu(false)}
+                            className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors sm:hidden"
+                          >
+                            <ShoppingBag className="h-4 w-4 text-slate-400" />
+                            My Orders
+                          </Link>
+                          <div className="border-t border-slate-100" />
+                          <button
+                            onClick={() => { setShowProfileMenu(false); handleLogout() }}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            <LogOut className="h-4 w-4" />
+                            Sign out
+                          </button>
+                        </div>
+                      </>
                     )}
-                    <span className="hidden sm:inline text-xs font-semibold text-slate-700 max-w-[80px] truncate">{customerName}</span>
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="h-9 w-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
-                  >
-                    <LogOut className="h-4 w-4" />
-                  </button>
+                  </div>
                 </>
               ) : (
                 <>
