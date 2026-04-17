@@ -13,6 +13,7 @@ import { useStore } from '@/components/store/StoreContext'
 import { toast } from 'sonner'
 import { createCustomerClient } from '@/lib/supabase/customer-client'
 import { getStoreTheme, type StoreTheme } from '@/lib/storeTheme'
+import { notifyImporterNewOrderAction } from '@/app/store/[slug]/actions'
 
 interface Product {
   id: string
@@ -188,6 +189,14 @@ function CartDrawer({ slug, theme, onClose }: { slug: string; theme: StoreTheme;
         price: item.products.price,
       })))
     if (itemsError) { toast.error('Order placed but items missing. Contact support.'); setPlacing(false); return }
+
+    // Notify the importer (non-blocking)
+    notifyImporterNewOrderAction(
+      store.storeId!,
+      store.customerName || 'A customer',
+      cartItems.map(i => i.products.name)
+    )
+
     clearCart()
     setOrderPlaced(true)
     setPlacing(false)

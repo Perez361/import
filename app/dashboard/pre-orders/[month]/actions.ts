@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedUser } from '@/lib/auth/session'
+import { getTokensForUsers, sendPushNotifications } from '@/lib/notifications/push'
 
 export async function saveTrackingAction(productId: string, trackingNumber: string) {
   const user = await getAuthenticatedUser()
@@ -78,6 +79,27 @@ export async function billProductShippingAction(
       .eq('store_id', user.id)
   }
 
+  // Notify customers that their shipping fee is ready
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('customer_id, customers(user_id)')
+    .in('id', orderIds)
+
+  const userIds = (orders ?? [])
+    .map((o: any) => (Array.isArray(o.customers) ? o.customers[0] : o.customers)?.user_id)
+    .filter(Boolean) as string[]
+
+  const { data: product } = await supabase
+    .from('products').select('name').eq('id', productId).single()
+
+  const tokens = await getTokensForUsers(userIds)
+  await sendPushNotifications(
+    tokens,
+    'Shipping fee ready 🚚',
+    `Your shipping for ${product?.name ?? 'your order'} is GH₵${shippingFee.toFixed(0)}. Pay now to receive your order.`,
+    { screen: 'store-orders' }
+  )
+
   revalidatePath('/dashboard/pre-orders')
   revalidatePath('/dashboard/orders')
   return { success: true }
@@ -119,6 +141,12 @@ export async function markDeliveredAction(orderId: string) {
 
   const supabase = await createClient()
 
+  const { data: order } = await supabase
+    .from('orders')
+    .select('customer_id, customers(user_id)')
+    .eq('id', orderId)
+    .single()
+
   const { error } = await supabase
     .from('orders')
     .update({
@@ -130,6 +158,21 @@ export async function markDeliveredAction(orderId: string) {
     .eq('store_id', user.id)
 
   if (error) return { error: error.message }
+
+  // Notify the customer their order is ready for pickup
+  if (order) {
+    const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers
+    const userId = (customer as any)?.user_id
+    if (userId) {
+      const tokens = await getTokensForUsers([userId])
+      await sendPushNotifications(
+        tokens,
+        'Order delivered! ✅',
+        'Your order is ready. Come pick it up!',
+        { screen: 'store-orders' }
+      )
+    }
+  }
 
   revalidatePath('/dashboard/pre-orders')
   revalidatePath('/dashboard/orders')
