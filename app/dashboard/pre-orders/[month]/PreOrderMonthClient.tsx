@@ -20,7 +20,7 @@ interface CustomerRow {
   quantity: number
   unitPrice: number
   status: string
-  shippingFee: number | null
+  itemShippingFee: number | null
   shippingNote: string | null
   momoNumber: string | null
   paymentRef: string | null
@@ -99,10 +99,10 @@ function CustomerRow({ c, i }: { c: CustomerRow; i: number }) {
       </div>
       <div className="flex flex-col items-start gap-0.5">
         <StatusBadge status={c.status} />
-        {/* Show shipping fee if already set */}
-        {c.shippingFee && c.shippingFee > 0 && (
+        {/* Show per-item shipping fee if already billed for this product */}
+        {c.itemShippingFee != null && c.itemShippingFee > 0 && (
           <span className="text-[10px] text-orange-600 font-semibold pl-0.5">
-            +GH₵{fmt(c.shippingFee)} shipping
+            +GH₵{fmt(c.itemShippingFee)} shipping
           </span>
         )}
       </div>
@@ -149,8 +149,13 @@ function ProductCard({ group }: { group: ProductGroup }) {
   const paid     = customers.filter(c => PAID_STATUSES.has(c.status))
   const pending  = customers.filter(c => c.status === 'pending')
 
-  // Paid customers who haven't had shipping billed yet
-  const billable = customers.filter(c => BILLABLE_STATUSES.has(c.status))
+  // Paid customers whose shipping for THIS product hasn't been billed yet.
+  // itemShippingFee tracks per-product billing, so a customer with a
+  // multi-product order remains billable for each unbilled product
+  // independently of the order's overall status.
+  const billable = customers.filter(c =>
+    PAID_STATUSES.has(c.status) && c.itemShippingFee == null
+  )
 
   const totalQty    = customers.reduce((s, c) => s + c.quantity, 0)
   const paidRevenue = paid.reduce((s, c) => s + c.unitPrice * c.quantity, 0)
@@ -161,13 +166,13 @@ function ProductCard({ group }: { group: ProductGroup }) {
     if (!billable.length) { toast.error('No billable orders'); return }
     setBilling(true)
     const ids = billable.map(c => c.orderId)
-    const r: any = await billProductShippingAction(ids, feeNum, note)
+    const r: any = await billProductShippingAction(ids, group.productId, feeNum, note)
     setBilling(false)
     if (r.error) { toast.error(r.error); return }
     toast.success(`Shipping fee billed to ${ids.length} customer${ids.length !== 1 ? 's' : ''}!`)
     setCustomers(prev => prev.map(c =>
-      BILLABLE_STATUSES.has(c.status)
-        ? { ...c, status: 'shipping_billed', shippingFee: feeNum, shippingNote: note || null }
+      PAID_STATUSES.has(c.status) && c.itemShippingFee == null
+        ? { ...c, itemShippingFee: feeNum, shippingNote: note || null }
         : c
     ))
     setFee('')
@@ -534,17 +539,19 @@ export default function PreOrderMonthClient({
   }
   const productInvoices = Array.from(productInvoiceMap.values()).sort((a, b) => a.name.localeCompare(b.name))
 
-  // Build shipping invoices (shipping_billed — fee set, awaiting payment)
+  // Build shipping invoices — one line per product whose shipping has been billed.
+  // Uses itemShippingFee (per-product) so multi-product orders show each
+  // product's shipping separately on the customer's invoice.
   const shippingInvoiceMap = new Map<string, CustomerInvoice>()
   for (const group of groups) {
     for (const c of group.customers) {
-      if (c.status !== 'shipping_billed' || !c.shippingFee) continue
+      if (c.itemShippingFee == null || c.itemShippingFee <= 0) continue
       if (!shippingInvoiceMap.has(c.name)) {
         shippingInvoiceMap.set(c.name, { name: c.name, contact: c.contact, location: c.location, lines: [], total: 0 })
       }
       const inv = shippingInvoiceMap.get(c.name)!
-      inv.lines.push({ orderId: c.orderId, productName: group.productName, quantity: c.quantity, unitPrice: c.unitPrice, amount: c.shippingFee, note: c.shippingNote })
-      inv.total += c.shippingFee
+      inv.lines.push({ orderId: c.orderId, productName: group.productName, quantity: c.quantity, unitPrice: c.unitPrice, amount: c.itemShippingFee, note: c.shippingNote })
+      inv.total += c.itemShippingFee
     }
   }
   const shippingInvoices = Array.from(shippingInvoiceMap.values()).sort((a, b) => a.name.localeCompare(b.name))

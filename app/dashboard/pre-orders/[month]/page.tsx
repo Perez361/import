@@ -44,7 +44,7 @@ export default async function PreOrderMonthPage({
       momo_number, payment_reference,
       customers ( id, full_name, username, contact, location ),
       order_items (
-        id, quantity, price,
+        id, quantity, price, shipping_fee,
         products ( id, name, image_url, tracking_number, supplier_name )
       )
     `)
@@ -89,7 +89,7 @@ export default async function PreOrderMonthPage({
         quantity: item.quantity,
         unitPrice: parseFloat(String(item.price)) || 0,
         status: order.status?.toLowerCase() || 'pending',
-        shippingFee: order.shipping_fee ? parseFloat(String(order.shipping_fee)) : null,
+        itemShippingFee: item.shipping_fee != null ? parseFloat(String(item.shipping_fee)) : null,
         shippingNote: order.shipping_note ?? null,
         momoNumber: order.momo_number ?? null,
         paymentRef: order.payment_reference ?? null,
