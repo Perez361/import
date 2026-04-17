@@ -52,8 +52,8 @@ export default function CustomerResetPasswordPage() {
         })
     } else {
       // Fallback: check if there's already a live session (e.g. page refresh)
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) setReady(true)
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) setReady(true)
         else setLinkError('Invalid or expired reset link. Please request a new one.')
       })
     }
