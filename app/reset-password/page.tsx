@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { Loader2, Package, CheckCircle2, XCircle } from 'lucide-react'
 import FormInput from '@/components/auth/FormInput'
 import { createClient } from '@/lib/supabase/client'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 const schema = z
   .object({
@@ -37,7 +38,7 @@ export default function ResetPasswordPage() {
     let settled = false
 
     // Supabase fires PASSWORD_RECOVERY when it detects recovery tokens in the URL hash
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (settled) return
       if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
         settled = true
