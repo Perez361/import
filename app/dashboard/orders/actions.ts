@@ -4,6 +4,22 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedUser } from '@/lib/auth/session'
+import { getTokensForUsers, sendPushNotifications } from '@/lib/notifications/push'
+
+// Resolve the customer's auth user_id and the store_id from an order
+async function getOrderParties(supabase: Awaited<ReturnType<typeof createClient>>, orderId: string) {
+  const { data } = await supabase
+    .from('orders')
+    .select('store_id, customers(user_id)')
+    .eq('id', orderId)
+    .single()
+  if (!data) return { customerUserId: null, storeId: null }
+  const customer = Array.isArray(data.customers) ? data.customers[0] : data.customers
+  return {
+    customerUserId: (customer as any)?.user_id as string | null,
+    storeId: data.store_id as string | null,
+  }
+}
 
 // Importer: set shipping fee and bill the customer
 export async function billShippingAction(orderId: string, shippingFee: number, note?: string) {
@@ -98,6 +114,8 @@ export async function customerConfirmShippingPaymentAction(
 ) {
   const supabase = await createClient()
 
+  const { storeId } = await getOrderParties(supabase, orderId)
+
   const { error } = await supabase
     .from('orders')
     .update({
@@ -109,6 +127,17 @@ export async function customerConfirmShippingPaymentAction(
 
   if (error) return { error: error.message }
 
+  // Notify the importer that shipping payment was confirmed
+  if (storeId) {
+    const tokens = await getTokensForUsers([storeId])
+    await sendPushNotifications(
+      tokens,
+      'Shipping payment received 💰',
+      'A customer confirmed their shipping payment. Prepare their order for delivery.',
+      { screen: 'orders' }
+    )
+  }
+
   revalidatePath('/dashboard/orders')
   return { success: true }
 }
@@ -119,6 +148,8 @@ export async function markProductPaidAction(orderId: string, reference?: string)
   if (!user) redirect('/login')
 
   const supabase = await createClient()
+
+  const { customerUserId } = await getOrderParties(supabase, orderId)
 
   const { error } = await supabase
     .from('orders')
@@ -132,6 +163,17 @@ export async function markProductPaidAction(orderId: string, reference?: string)
 
   if (error) return { error: error.message }
 
+  // Notify customer their product payment was confirmed
+  if (customerUserId) {
+    const tokens = await getTokensForUsers([customerUserId])
+    await sendPushNotifications(
+      tokens,
+      'Payment confirmed ✅',
+      'Your product payment has been received. We\'ll notify you when your order is on its way.',
+      { screen: 'store-orders' }
+    )
+  }
+
   revalidatePath('/dashboard/orders')
   return { success: true }
 }
@@ -143,15 +185,25 @@ export async function markProcessingAction(orderId: string) {
 
   const supabase = await createClient()
 
+  const { customerUserId } = await getOrderParties(supabase, orderId)
+
   const { error } = await supabase
     .from('orders')
-    .update({
-      status: 'processing',
-    })
+    .update({ status: 'processing' })
     .eq('id', orderId)
     .eq('store_id', user.id)
 
   if (error) return { error: error.message }
+
+  if (customerUserId) {
+    const tokens = await getTokensForUsers([customerUserId])
+    await sendPushNotifications(
+      tokens,
+      'Order in progress 📦',
+      'Your order is being processed. We\'ll let you know when it arrives.',
+      { screen: 'store-orders' }
+    )
+  }
 
   revalidatePath('/dashboard/orders')
   return { success: true }
@@ -164,15 +216,25 @@ export async function markArrivedAction(orderId: string) {
 
   const supabase = await createClient()
 
+  const { customerUserId } = await getOrderParties(supabase, orderId)
+
   const { error } = await supabase
     .from('orders')
-    .update({
-      status: 'arrived',
-    })
+    .update({ status: 'arrived' })
     .eq('id', orderId)
     .eq('store_id', user.id)
 
   if (error) return { error: error.message }
+
+  if (customerUserId) {
+    const tokens = await getTokensForUsers([customerUserId])
+    await sendPushNotifications(
+      tokens,
+      'Your order has arrived! 🎉',
+      'Your item is in Ghana. Your shipping fee will be sent to you shortly.',
+      { screen: 'store-orders' }
+    )
+  }
 
   revalidatePath('/dashboard/orders')
   return { success: true }
