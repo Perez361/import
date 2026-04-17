@@ -46,7 +46,7 @@ export default function CustomerResetPasswordPage() {
 
     if (accessToken && type === 'recovery') {
       supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken ?? '' })
-        .then(({ error }) => {
+        .then(({ error }: { error: { message: string } | null }) => {
           if (error) setLinkError('Invalid or expired reset link. Please request a new one.')
           else setReady(true)
         })
