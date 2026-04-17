@@ -398,22 +398,6 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
             <div className="flex items-center gap-2 shrink-0">
               {isLoggedIn && customerName ? (
                 <>
-                  {/* Orders link */}
-                  <Link
-                    href={`/store/${slug}/orders`}
-                    className="relative hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all"
-                  >
-                    Orders
-                    {pendingOrderCount > 0 && (
-                      <span
-                        className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full text-white text-[9px] font-black"
-                        style={{ background: theme.heroAccent }}
-                      >
-                        {pendingOrderCount}
-                      </span>
-                    )}
-                  </Link>
-
                   {/* Profile dropdown */}
                   <div className="relative">
                     <button
@@ -447,7 +431,7 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                           <Link
                             href={`/store/${slug}/orders`}
                             onClick={() => setShowProfileMenu(false)}
-                            className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors sm:hidden"
+                            className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                           >
                             <ShoppingBag className="h-4 w-4 text-slate-400" />
                             My Orders
@@ -464,6 +448,22 @@ export default function StoreContent({ slug, importer, products }: StoreContentP
                       </>
                     )}
                   </div>
+
+                  {/* Orders link */}
+                  <Link
+                    href={`/store/${slug}/orders`}
+                    className="relative hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all"
+                  >
+                    Orders
+                    {pendingOrderCount > 0 && (
+                      <span
+                        className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full text-white text-[9px] font-black"
+                        style={{ background: theme.heroAccent }}
+                      >
+                        {pendingOrderCount}
+                      </span>
+                    )}
+                  </Link>
                 </>
               ) : (
                 <>
