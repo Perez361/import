@@ -47,10 +47,11 @@ export default function ResetPasswordPage() {
     })
 
     // Also check immediately — handles page refreshes where session is already in storage
-    void supabase.auth.getSession().then((res) => {
+    ;(async () => {
+      const { data } = await supabase.auth.getSession()
       if (settled) return
-      if (res.data.session) { settled = true; setReady(true) }
-    })
+      if (data.session) { settled = true; setReady(true) }
+    })()
 
     // If nothing fires after 4s, the link is invalid or already used
     const timeout = setTimeout(() => {
