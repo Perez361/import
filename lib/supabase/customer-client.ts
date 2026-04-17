@@ -1,9 +1,23 @@
 import { createBrowserClient } from '@supabase/ssr'
 
-// Dedicated client for customer sessions on storefronts.
-// Uses its own localStorage key so it never collides with importer sessions.
-// A new instance is created per slug so sessions are fully isolated
-// between different storefronts too.
+// Customer sessions are stored in sessionStorage (per-tab) instead of localStorage.
+// This prevents the importer client's localStorage events from bleeding into
+// customer tabs and causing unwanted re-renders / auth state changes.
+const sessionStorageAdapter = {
+  getItem: (key: string) => {
+    if (typeof window === 'undefined') return null
+    try { return sessionStorage.getItem(key) } catch { return null }
+  },
+  setItem: (key: string, value: string) => {
+    if (typeof window === 'undefined') return
+    try { sessionStorage.setItem(key, value) } catch {}
+  },
+  removeItem: (key: string) => {
+    if (typeof window === 'undefined') return
+    try { sessionStorage.removeItem(key) } catch {}
+  },
+}
+
 const instances = new Map<string, ReturnType<typeof createBrowserClient>>()
 
 export function createCustomerClient(slug: string) {
@@ -16,9 +30,10 @@ export function createCustomerClient(slug: string) {
         {
           auth: {
             storageKey: `importflow-customer-auth-${slug}`,
+            storage: sessionStorageAdapter,
             persistSession: true,
             autoRefreshToken: true,
-            detectSessionInUrl: false, // customers don't use OAuth redirects
+            detectSessionInUrl: false,
           },
         }
       )
