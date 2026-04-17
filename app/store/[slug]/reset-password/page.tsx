@@ -45,17 +45,18 @@ export default function CustomerResetPasswordPage() {
     const type = params.get('type')
 
     if (accessToken && type === 'recovery') {
-      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken ?? '' })
-        .then(({ error }: { error: { message: string } | null }) => {
-          if (error) setLinkError('Invalid or expired reset link. Please request a new one.')
-          else setReady(true)
-        })
+      ;(async () => {
+        const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken ?? '' })
+        if (error) setLinkError('Invalid or expired reset link. Please request a new one.')
+        else setReady(true)
+      })()
     } else {
       // Fallback: check if there's already a live session (e.g. page refresh)
-      supabase.auth.getSession().then(({ data }) => {
+      ;(async () => {
+        const { data } = await supabase.auth.getSession()
         if (data.session) setReady(true)
         else setLinkError('Invalid or expired reset link. Please request a new one.')
-      })
+      })()
     }
   }, [slug])
 
